@@ -170,6 +170,8 @@
         .usage-tips li:nth-child(1) { color: #5a7a6a; }
         /* 鸿蒙说明 — 蓝灰，补充说明 */
         .usage-tips li:nth-child(2) { color: #6a7a8a; }
+        /* 保存说明 — 琥珀色，操作引导 */
+        .usage-tips li:nth-child(3) { color: #9a7e3a; }
 
         /* 页脚 */
         .footer { text-align: center; font-size: 11px; color: #9aa8b6; padding: 16px 0 8px; }
@@ -220,10 +222,11 @@
     <div class="card">
         <div class="usage-tips">
             <h3>使用说明</h3>
-            <div class="browser-tip">💡 跳转功能需使用浏览器打开此文件才生效</div>
+            <div class="browser-tip">💡 跳转功能需使用浏览器打开此页面才生效</div>
             <ol>
-                <li>安卓设备生成二维码后点击跳转淘宝，支持淘宝自动弹窗</li>
-                <li>鸿蒙设备跳转淘宝不支持淘宝自动弹窗，跳转后在首页粘贴自动复制的链接打开即可</li>
+                <li><strong>安卓设备：</strong>生成二维码后点击「一键跳转淘宝APP」，淘宝自动弹窗打开商品</li>
+                <li><strong>鸿蒙设备：</strong>跳转淘宝后不自动弹窗，请在淘宝首页搜索框长按粘贴已复制的链接即可打开商品</li>
+                <li><strong>保存二维码：</strong>长按二维码图片，选择「保存到相册」即可保存至图库</li>
             </ol>
         </div>
     </div>
@@ -604,11 +607,6 @@
                 saveTip.className = 'long-press-tip';
                 saveTip.textContent = '👆 长按二维码图片可保存至图库';
 
-                // 鸿蒙设备操作引导提示
-                const harmonyGuide = document.createElement('div');
-                harmonyGuide.style.cssText = 'background:#fdf6e8;border:1px solid #e8d8b0;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px;color:#9a7e3a;text-align:left;line-height:1.6;';
-                harmonyGuide.innerHTML = '📌 <strong>鸿蒙用户注意：</strong>点击跳转淘宝后，请在淘宝首页搜索框<strong>长按粘贴</strong>已复制的链接即可打开商品';
-
                 // 创建操作按钮区域
                 const actionButtons = document.createElement('div');
                 actionButtons.className = 'action-buttons';
@@ -651,7 +649,6 @@
                 // 将元素添加到容器中
                 container.appendChild(contentInfo);
                 container.appendChild(saveTip);
-                container.appendChild(harmonyGuide);
                 container.appendChild(actionButtons);
 
                 // 更新结果区域
