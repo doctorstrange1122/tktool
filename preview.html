@@ -579,11 +579,10 @@
                 const info = document.createElement('p');
                 info.textContent = `已为您生成 ${quantity} 二维码，提取的商品ID：${productId}`;
 
-                // 创建内容格式显示和复制成功提示
+                // 创建复制成功提示（隐藏内容格式，只显示复制提示）
                 const contentInfo = document.createElement('div');
                 contentInfo.style.margin = '10px 0';
                 contentInfo.innerHTML = `
-                    <span>内容格式："${fixedString}" + "${productId}"</span>
                     <span class="copy-success">✓ 已复制到剪贴板</span>
                 `;
 
