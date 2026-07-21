@@ -588,10 +588,6 @@
                 const container = document.createElement('div');
                 container.className = 'qr-code-container';
 
-                // 创建信息文本
-                const info = document.createElement('p');
-                info.textContent = `已为您生成 ${quantity} 二维码，提取的商品ID：${productId}`;
-
                 // 创建复制成功提示（隐藏内容格式，只显示复制提示）
                 const contentInfo = document.createElement('div');
                 contentInfo.style.margin = '10px 0';
@@ -652,8 +648,7 @@
                     `;
                 }
 
-                // 将元素添加到容器中（隐藏商品ID信息，保留复制成功提示）
-                // container.appendChild(info); // 已隐藏：不显示"已为您生成...提取的商品ID"
+                // 将元素添加到容器中
                 container.appendChild(contentInfo);
                 container.appendChild(saveTip);
                 container.appendChild(harmonyGuide);
