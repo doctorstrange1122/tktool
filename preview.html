@@ -98,13 +98,24 @@
         }
 
         /* 结果区 */
-        #resultArea { margin-top: 0; text-align: center; }
+        #resultArea { margin-top: 0; margin-bottom: 18px; text-align: center; }
         #resultArea .qr-code-container { text-align: center; }
         #resultArea img { display: inline-block; }
         .result-card { text-align: center; }
         .result-card img {
             border-radius: 12px; box-shadow: 0 4px 16px rgba(120,140,160,0.12);
             margin: 10px 0;
+        }
+        .long-press-tip {
+            display: inline-block;
+            background: #eef6ff;
+            border: 1px solid #b3d0f0;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            color: #2c6cb5;
+            font-weight: 600;
+            margin: 4px 0 12px;
         }
         .result-info {
             font-size: 14px; color: #4a5c6e; margin: 8px 0;
@@ -594,7 +605,7 @@
 
                 // 长按保存提示
                 const saveTip = document.createElement('div');
-                saveTip.style.cssText = 'font-size:13px;color:#5a7a96;margin:8px 0;font-weight:500;';
+                saveTip.className = 'long-press-tip';
                 saveTip.textContent = '👆 长按二维码图片可保存至图库';
 
                 // 鸿蒙设备操作引导提示
