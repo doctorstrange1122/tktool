@@ -605,23 +605,13 @@
                 if (customText) {
                     currentQRCodeWithTextCanvas = await createQRCodeWithText(qrCodeDataURL, customText);
 
-                    // 创建带文字的二维码显示区域
-                    const qrCodeWithTextDiv = document.createElement('div');
-                    qrCodeWithTextDiv.className = 'qr-code-with-text';
-
-                    // 显示自定义文字
-                    const textDiv = document.createElement('div');
-                    textDiv.className = 'qr-code-text';
-                    textDiv.textContent = customText;
-                    textDiv.style.fontSize = '16px'; // 增大2个字号
-                    textDiv.style.textAlign = 'center'; // 居中对齐
-
-                    const img = document.createElement('img');
-                    img.src = qrCodeDataURL;
-                    img.alt = '生成的二维码';
-                    qrCodeWithTextDiv.appendChild(textDiv);
-                    qrCodeWithTextDiv.appendChild(img);
-                    container.appendChild(qrCodeWithTextDiv);
+                    // 将合并后的canvas转为图片，长按可保存完整图片（文字+二维码）
+                    const mergedImg = document.createElement('img');
+                    mergedImg.src = currentQRCodeWithTextCanvas.toDataURL('image/png');
+                    mergedImg.alt = '带文字的二维码';
+                    mergedImg.style.maxWidth = '200px';
+                    mergedImg.style.borderRadius = '8px';
+                    container.appendChild(mergedImg);
 
                     actionButtons.innerHTML = `
                         <button onclick="downloadQRCodeWithText()">下载带文字二维码(.jpg)</button>
