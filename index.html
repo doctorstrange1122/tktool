@@ -439,18 +439,13 @@
             }
         }
 
-        // 跳转到淘宝APP
+        // 跳转到淘宝APP（不兜底打开网页版）
         function openTaobaoApp(url) {
-            // 淘宝APP Schema
             const taobaoScheme = `taobao://${url.replace('https://', '')}`;
             window.location.href = taobaoScheme;
-            // 如果APP未安装，3秒后跳转到网页版
-            setTimeout(() => {
-                window.location.href = url;
-            }, 3000);
         }
 
-        // 创建带文字的二维码图片（增加字号，居中对齐，修复显示问题）
+        // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
         function createQRCodeWithText(qrCodeDataURL, customText) {
             return new Promise((resolve) => {
                 const qrCodeImg = new Image();
@@ -459,48 +454,44 @@
                 qrCodeImg.onload = function() {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    // 设置画布尺寸（二维码高度 + 文字区域高度）
-                    const textHeight = customText ? 60 : 0; // 增加文字区域高度
-                    canvas.width = 200; // 增加画布宽度
-                    canvas.height = 150 + textHeight;
 
-                    // 绘制白色背景（确保背景不是黑色）
+                    const qrSize = 180;
+                    const padding = 12;
+                    const fontSize = 18;
+                    const lineHeight = fontSize + 4;
+                    const maxCharsPerLine = 12;
+
+                    // 文字换行处理
+                    const lines = [];
+                    let currentLine = '';
+                    for (let i = 0; i < customText.length; i++) {
+                        currentLine += customText[i];
+                        if (currentLine.length >= maxCharsPerLine || i === customText.length - 1) {
+                            lines.push(currentLine);
+                            currentLine = '';
+                        }
+                    }
+
+                    const textAreaHeight = lines.length * lineHeight + padding;
+                    canvas.width = qrSize + padding * 2;
+                    canvas.height = qrSize + textAreaHeight + padding;
+
+                    // 绘制白色背景
                     ctx.fillStyle = 'white';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                    // 绘制文字（如果有）
-                    if (customText) {
-                        ctx.fillStyle = 'black';
-                        // 增大2个字号：从12px增加到16px
-                        ctx.font = '16px Arial';
-                        ctx.textAlign = 'center';
+                    // 绘制文字
+                    ctx.fillStyle = '#333';
+                    ctx.font = `bold ${fontSize}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
 
-                        // 文字换行处理
-                        const maxCharsPerLine = 15; // 减少每行字符数以适配更大字号
-                        const lines = [];
-                        let currentLine = '';
+                    lines.forEach((line, index) => {
+                        ctx.fillText(line, canvas.width / 2, padding + lineHeight * (index + 0.5));
+                    });
 
-                        for (let i = 0; i < customText.length; i++) {
-                            currentLine += customText[i];
-                            if (currentLine.length >= maxCharsPerLine || i === customText.length - 1) {
-                                lines.push(currentLine);
-                                currentLine = '';
-                            }
-                        }
-
-                        // 绘制多行文字（居中对齐）
-                        const lineHeight = 20; // 增加行高
-                        const totalTextHeight = lines.length * lineHeight;
-                        const startY = (textHeight - totalTextHeight) / 2 + lineHeight;
-
-                        lines.forEach((line, index) => {
-                            ctx.fillText(line, canvas.width / 2, startY + (index * lineHeight));
-                        });
-                    }
-
-                    // 绘制二维码（居中对齐）- 确保二维码正常显示
-                    const qrCodeX = (canvas.width - 150) / 2;
-                    ctx.drawImage(qrCodeImg, qrCodeX, textHeight, 150, 150);
+                    // 绘制二维码
+                    ctx.drawImage(qrCodeImg, padding, textAreaHeight, qrSize, qrSize);
                     resolve(canvas);
                 };
 
