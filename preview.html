@@ -392,14 +392,15 @@
 
             try {
                 const link = document.createElement('a');
-                link.href = currentQRCodeCanvas.toDataURL('image/jpeg', 0.9);
-                link.download = 'qrcode.jpg';
+                link.href = currentQRCodeCanvas.toDataURL('image/png');
+                link.download = 'qrcode.png';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                alert('图片已下载，请在手机「文件管理 → Download」文件夹中查看。若图库未显示，请将图片移动到 DCIM 文件夹。');
             } catch (error) {
                 console.error('下载失败:', error);
-                alert('下载失败，请重试');
+                alert('下载失败，请长按二维码图片选择「保存到相册」');
             }
         }
 
@@ -412,14 +413,15 @@
 
             try {
                 const link = document.createElement('a');
-                link.href = currentQRCodeWithTextCanvas.toDataURL('image/jpeg', 0.9);
-                link.download = 'qrcode_with_text.jpg';
+                link.href = currentQRCodeWithTextCanvas.toDataURL('image/png');
+                link.download = 'qrcode_with_text.png';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                alert('图片已下载，请在手机「文件管理 → Download」文件夹中查看。若图库未显示，请将图片移动到 DCIM 文件夹。');
             } catch (error) {
                 console.error('下载失败:', error);
-                alert('下载失败，请重试');
+                alert('下载失败，请长按二维码图片选择「保存到相册」');
             }
         }
 
