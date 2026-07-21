@@ -2,202 +2,237 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#FF4400">
     <title>秒杀商品过肥二维码生成</title>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #e8edf2 0%, #d3dde6 50%, #c2cfd9 100%);
+            min-height: 100vh;
+            padding: 16px;
+            color: #3a4a5a;
+        }
+        .wrapper { max-width: 480px; margin: 0 auto; }
+
+        /* 标题 */
+        .header { text-align: center; padding: 20px 0 16px; color: #4a5c6e; }
+        .header h1 { font-size: 24px; font-weight: 700; letter-spacing: 1px; }
+        .header .subtitle { font-size: 13px; color: #8a9bad; margin-top: 6px; }
+
+        /* 卡片通用 */
+        .card {
+            background: #fdfdfe;
+            border-radius: 16px;
             padding: 20px;
-            text-align: center;
+            box-shadow: 0 4px 20px rgba(120,140,160,0.1);
+            margin-bottom: 14px;
         }
+        .card-title {
+            font-size: 15px; font-weight: 600; color: #6b7f92;
+            margin-bottom: 14px; display: flex; align-items: center; gap: 6px;
+        }
+        .card-title::before { content: ""; width: 4px; height: 16px; background: #8ba0b5; border-radius: 2px; }
+
+        /* 权限提示 — 蓝色系，提示性质 */
         .permission-tip {
-            background-color: #fff8e1;
-            border: 1px solid #ffd54f;
-            border-radius: 4px;
-            padding: 10px;
-            margin: 15px 0;
-            font-size: 14px;
-            color: #e65100;
+            background: #eaf0f6;
+            border: 1px solid #c5d2de;
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            color: #5a7a96;
+            text-align: left;
         }
+
+        /* 输入区 */
+        .input-section { margin-bottom: 14px; }
+        .input-section label {
+            display: block; font-size: 14px; font-weight: 600;
+            color: #4a5c6e; margin-bottom: 6px;
+        }
+        .input-section input {
+            width: 100%;
+            padding: 12px 14px; font-size: 16px;
+            border: 2px solid #dde3ea; border-radius: 10px;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+            font-family: inherit;
+            background: #fff;
+            color: #3a4a5a;
+        }
+        .input-section input:focus { outline: none; border-color: #8ba0b5; }
+        .input-section input::placeholder { color: #b0bcc8; }
+        .input-row { display: flex; gap: 10px; align-items: center; }
+        .input-row input { flex: 1; }
+        .clear-button {
+            padding: 12px 16px; font-size: 14px; font-weight: 600;
+            background: #eef2f6; color: #7a8b9c;
+            border: none; border-radius: 10px; cursor: pointer;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .clear-button:active { background: #e0e6ec; }
+
+        /* 提示文字 — 醒目颜色 */
+        .tip-text { font-size: 13px; color: #d4884a; font-weight: 500; margin-top: 6px; }
+
+        /* 生成按钮组 */
         .button-group {
-            margin: 20px 0;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            align-items: center;
+            display: flex; flex-direction: column; gap: 12px; align-items: center;
         }
         .button-group button {
-            width: 90%;
-            max-width: 320px;
-            padding: 12px 20px;
-            font-size: 16px;
-            cursor: pointer;
+            width: 100%; max-width: 320px;
+            padding: 14px 20px; font-size: 16px; font-weight: 600;
+            border: none; border-radius: 12px; cursor: pointer;
+            background: linear-gradient(135deg, #7a93ac, #6b82a0);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(110,130,160,0.25);
+            transition: transform 0.1s, box-shadow 0.2s;
         }
-        #resultArea {
-            margin-top: 30px;
-            padding: 20px;
-            border-top: 1px solid #ccc;
-        }
-        .qr-code {
-            display: inline-block;
-            margin: 10px;
-            text-align: center;
-        }
-        .qr-code img {
-            width: 150px;
-            height: 150px;
-            display: block;
-            margin-bottom: 8px;
-        }
-        .input-group {
-            margin: 20px 0;
-        }
-        input {
-            width: 80%;
-            padding: 10px;
-            font-size: 16px;
-            margin: 10px 0;
-            -webkit-appearance: none;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+        .button-group button:active {
+            transform: scale(0.97);
+            box-shadow: 0 2px 8px rgba(110,130,160,0.25);
         }
 
-        .tip-text {
-            font-size: 12px;
-            color: #666;
-            margin-top: -5px;
-            margin-bottom: 15px;
+        /* 结果区 */
+        #resultArea { margin-top: 0; margin-bottom: 18px; text-align: center; }
+        #resultArea .qr-code-container { text-align: center; }
+        #resultArea img { display: inline-block; }
+        .result-card { text-align: center; }
+        .result-card img {
+            border-radius: 12px; box-shadow: 0 4px 16px rgba(120,140,160,0.12);
+            margin: 10px 0;
         }
+        .long-press-tip {
+            display: inline-block;
+            background: #eef6ff;
+            border: 1px solid #b3d0f0;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            color: #2c6cb5;
+            font-weight: 600;
+            margin: 4px 0 12px;
+        }
+        .result-info {
+            font-size: 14px; color: #4a5c6e; margin: 8px 0;
+            padding: 10px; background: #f4f7fa; border-radius: 8px;
+        }
+        .result-info .copy-success {
+            color: #6a9a7a; font-size: 12px; font-weight: 600;
+            display: inline; margin-left: 8px;
+        }
+
+        /* 操作按钮 */
         .action-buttons {
-            margin: 15px 0;
+            display: flex; flex-direction: column; gap: 10px; align-items: center;
+            margin-top: 12px;
         }
         .action-buttons button {
-            padding: 8px 15px;
-            font-size: 14px;
-            margin: 5px;
+            width: 90%; max-width: 280px;
+            padding: 12px 16px; font-size: 14px; font-weight: 600;
+            border: none; border-radius: 8px; cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
         }
-        .copy-success {
-            color: green;
-            font-size: 12px;
-            margin-left: 10px;
-            display: none;
-        }
-        .usage-tips {
-            background-color: #f5f5f5;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 30px;
-            text-align: left;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-        .usage-tips h3 {
-            margin-top: 0;
-            color: #333;
-        }
-        .usage-tips ol {
-            padding-left: 20px;
-        }
-        .usage-tips li {
-            margin-bottom: 10px;
-        }
-        .clear-button {
-            padding: 8px 15px;
-            font-size: 14px;
-            margin-left: 10px;
-            background-color: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .clear-button:hover {
-            background-color: #e0e0e0;
-        }
-        .custom-text-container {
-            margin: 20px 0;
+        .action-buttons button:active { transform: scale(0.96); }
+        .action-buttons button:nth-child(1) { background: #7a93ac; color: #fff; }
+        .action-buttons button:nth-child(2) { background: #eef2f6; color: #5a6c7e; }
+        .action-buttons button:nth-child(4) { background: #6a9a7a; color: #fff; }
+        .action-buttons .copy-success {
+            color: #6a9a7a; font-size: 12px; line-height: 38px; display: none;
         }
 
-        .custom-text-container label {
-            display: block;
-            margin-bottom: 5px;
-        }
-        .custom-text-container input {
-            width: 80%;
-            padding: 10px;
-            font-size: 16px;
-            margin: 5px 0;
-            -webkit-appearance: none;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-        .custom-text-tip {
-            font-size: 12px;
-            color: #666;
-            margin-top: -5px;
-            margin-bottom: 10px;
-        }
+        /* 带文字二维码 */
         .qr-code-with-text {
-            display: inline-block;
-            margin: 10px;
-            text-align: center;
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: inline-block; text-align: center;
+            background: #fff; padding: 12px; border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(120,140,160,0.12); margin: 10px;
         }
         .qr-code-text {
-            font-size: 14px;
-            margin-bottom: 8px;
-            max-width: 150px;
-            word-wrap: break-word;
-            line-height: 1.3;
+            font-size: 16px; font-weight: 600; margin-bottom: 8px;
+            max-width: 180px; word-wrap: break-word; line-height: 1.3;
+            color: #4a5c6e;
         }
+
+        /* 使用说明 */
+        .usage-tips { font-size: 14px; line-height: 1.7; text-align: left; }
+        .usage-tips h3 { margin-bottom: 10px; color: #6b7f92; font-size: 15px; }
+        /* 浏览器提示 — 琥珀色，注意性质 */
+        .usage-tips .browser-tip {
+            background: #fdf6e8; border: 1px solid #e8d8b0; border-radius: 8px;
+            padding: 8px 12px; margin-bottom: 10px; font-size: 13px; color: #9a7e3a;
+        }
+        .usage-tips ol { padding-left: 20px; }
+        /* 安卓说明 — 绿灰，正面引导 */
+        .usage-tips li:nth-child(1) { color: #5a7a6a; }
+        /* 鸿蒙说明 — 蓝灰，补充说明 */
+        .usage-tips li:nth-child(2) { color: #6a7a8a; }
+        /* 保存说明 — 琥珀色，操作引导 */
+        .usage-tips li:nth-child(3) { color: #9a7e3a; }
+
+        /* 页脚 */
+        .footer { text-align: center; font-size: 11px; color: #9aa8b6; padding: 16px 0 8px; }
     </style>
 </head>
 <body>
+<div class="wrapper">
 
-    <h1>秒杀商品过肥二维码生成</h1>
+    <div class="header">
+        <h1>秒杀商品二维码生成</h1>
+        <div class="subtitle">粘贴淘口令，一键生成二维码</div>
+    </div>
 
-    <!-- 剪贴板权限提示 -->
     <div class="permission-tip">
-        <strong>剪贴板权限提示：</strong>为正常使用功能，请授予页面剪贴板访问权限。
+        🔔 为正常使用复制和跳转功能，请授予页面剪贴板访问权限
     </div>
 
-    <!-- 自定义文字输入框 -->
-    <div class="custom-text-container">
-        <label for="customText">自定义文字（选填）：</label>
-        <input type="text" id="customText" placeholder="可输入备注信息，如商品名称、用途等">
-        <div class="custom-text-tip">自定义文字可用于备注二维码内容</div>
+    <div class="card">
+        <div class="card-title">输入信息</div>
+
+        <div class="input-section">
+            <label for="customText">自定义文字（选填）</label>
+            <input type="text" id="customText" placeholder="可输入备注信息，如商品名称、用途等">
+            <div class="tip-text">自定义文字将显示在二维码上方</div>
+        </div>
+
+        <div class="input-section">
+            <label for="productLink">淘口令 / 分享文本</label>
+            <div class="input-row">
+                <input type="text" id="productLink" placeholder="粘贴淘口令或分享文本" required>
+                <button class="clear-button" onclick="clearInput()">清空</button>
+            </div>
+            <div class="tip-text">直接粘贴淘口令或分享文本，自动解析获取商品ID</div>
+        </div>
     </div>
 
-    <div class="input-group">
-        <label for="productLink">请输入淘口令/分享文本：</label>
-        <input type="text" id="productLink" placeholder="在此粘贴淘口令或淘宝分享文本（如【淘宝】https://e.tb.cn/...）" required>
-        <button class="clear-button" onclick="clearInput()">清空</button>
-        <div class="tip-text">直接粘贴淘口令或分享文本，自动解析获取商品ID</div>
+    <div class="card">
+        <div class="card-title">生成二维码</div>
+        <div class="button-group">
+            <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68422&itemIds=')">生成4万二维码①（每日一次）</button>
+            <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=74994&itemIds=')">生成4万二维码②（每日一次）</button>
+            <button onclick="generateQRCodes(60000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68206&itemIds=')">生成6万二维码（每日一次）</button>
+        </div>
     </div>
 
-    <div class="button-group">
-        <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68422&itemIds=')">生成4万二维码①（每日一次）</button>
-        <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=74994&itemIds=')">生成4万二维码②（每日一次）</button>
-        <button onclick="generateQRCodes(60000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68206&itemIds=')">生成6万二维码（每日一次）</button>
+    <div id="resultArea"></div>
+
+    <div class="card">
+        <div class="usage-tips">
+            <h3>使用说明</h3>
+            <div class="browser-tip">💡 跳转功能需使用浏览器打开此页面才生效</div>
+            <ol>
+                <li><strong>安卓设备：</strong>生成二维码后点击「一键跳转淘宝APP」，淘宝自动弹窗打开商品</li>
+                <li><strong>鸿蒙设备：</strong>跳转淘宝后不自动弹窗，请在淘宝首页搜索框长按粘贴已复制的链接即可打开商品</li>
+                <li><strong>保存二维码：</strong>长按二维码图片，选择「保存到相册」即可保存至图库</li>
+            </ol>
+        </div>
     </div>
 
-    <div id="resultArea">
-        <!-- 二维码生成结果将显示在这里 -->
-    </div>
-
-    <!-- 使用说明提示 -->
-    <div class="usage-tips">
-        <h3>使用说明：</h3>
-        <p style="color: #e65100; margin-bottom: 10px;">跳转功能需使用浏览器打开此文件才生效</p>
-        <ol>
-            <li>安卓设备生成二维码后点击跳转淘宝，支持淘宝自动弹窗</li>
-            <li>鸿蒙设备跳转淘宝不支持淘宝自动弹窗，跳转后在首页粘贴自动复制的链接打开即可</li>
-        </ol>
-    </div>
+    <div class="footer">秒杀商品二维码生成工具</div>
+</div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script>
@@ -371,14 +406,15 @@
 
             try {
                 const link = document.createElement('a');
-                link.href = currentQRCodeCanvas.toDataURL('image/jpeg', 0.9);
-                link.download = 'qrcode.jpg';
+                link.href = currentQRCodeCanvas.toDataURL('image/png');
+                link.download = 'qrcode.png';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                alert('图片已下载，请在手机「文件管理 → Download」文件夹中查看。若图库未显示，请将图片移动到 DCIM 文件夹。');
             } catch (error) {
                 console.error('下载失败:', error);
-                alert('下载失败，请重试');
+                alert('下载失败，请长按二维码图片选择「保存到相册」');
             }
         }
 
@@ -391,14 +427,15 @@
 
             try {
                 const link = document.createElement('a');
-                link.href = currentQRCodeWithTextCanvas.toDataURL('image/jpeg', 0.9);
-                link.download = 'qrcode_with_text.jpg';
+                link.href = currentQRCodeWithTextCanvas.toDataURL('image/png');
+                link.download = 'qrcode_with_text.png';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+                alert('图片已下载，请在手机「文件管理 → Download」文件夹中查看。若图库未显示，请将图片移动到 DCIM 文件夹。');
             } catch (error) {
                 console.error('下载失败:', error);
-                alert('下载失败，请重试');
+                alert('下载失败，请长按二维码图片选择「保存到相册」');
             }
         }
 
@@ -554,21 +591,21 @@
                 const container = document.createElement('div');
                 container.className = 'qr-code-container';
 
-                // 创建信息文本
-                const info = document.createElement('p');
-                info.textContent = `已为您生成 ${quantity} 二维码，提取的商品ID：${productId}`;
-
-                // 创建内容格式显示和复制成功提示
+                // 创建复制成功提示（隐藏内容格式，只显示复制提示）
                 const contentInfo = document.createElement('div');
                 contentInfo.style.margin = '10px 0';
                 contentInfo.innerHTML = `
-                    <span>内容格式："${fixedString}" + "${productId}"</span>
-                    <span class="copy-success">✓ 已复制到剪贴板</span>
+                    <span class="copy-success">✓ 生成二维码内容已复制到剪贴板</span>
                 `;
 
                 // 显示复制成功提示
                 const copySuccess = contentInfo.querySelector('.copy-success');
                 copySuccess.style.display = 'inline';
+
+                // 长按保存提示
+                const saveTip = document.createElement('div');
+                saveTip.className = 'long-press-tip';
+                saveTip.textContent = '👆 长按二维码图片可保存至图库';
 
                 // 创建操作按钮区域
                 const actionButtons = document.createElement('div');
@@ -578,26 +615,15 @@
                 if (customText) {
                     currentQRCodeWithTextCanvas = await createQRCodeWithText(qrCodeDataURL, customText);
 
-                    // 创建带文字的二维码显示区域
-                    const qrCodeWithTextDiv = document.createElement('div');
-                    qrCodeWithTextDiv.className = 'qr-code-with-text';
-
-                    // 显示自定义文字
-                    const textDiv = document.createElement('div');
-                    textDiv.className = 'qr-code-text';
-                    textDiv.textContent = customText;
-                    textDiv.style.fontSize = '16px'; // 增大2个字号
-                    textDiv.style.textAlign = 'center'; // 居中对齐
-
-                    const img = document.createElement('img');
-                    img.src = qrCodeDataURL;
-                    img.alt = '生成的二维码';
-                    qrCodeWithTextDiv.appendChild(textDiv);
-                    qrCodeWithTextDiv.appendChild(img);
-                    container.appendChild(qrCodeWithTextDiv);
+                    // 将合并后的canvas转为图片，长按可保存完整图片（文字+二维码）
+                    const mergedImg = document.createElement('img');
+                    mergedImg.src = currentQRCodeWithTextCanvas.toDataURL('image/png');
+                    mergedImg.alt = '带文字的二维码';
+                    mergedImg.style.maxWidth = '200px';
+                    mergedImg.style.borderRadius = '8px';
+                    container.appendChild(mergedImg);
 
                     actionButtons.innerHTML = `
-                        <button onclick="downloadQRCodeWithText()">下载带文字二维码(.jpg)</button>
                         <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制内容格式</button>
                         <span class="copy-success">✓ 已复制</span>
                         <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
@@ -614,7 +640,6 @@
                     container.appendChild(img);
 
                     actionButtons.innerHTML = `
-                        <button onclick="downloadQRCode()">下载二维码(.jpg)</button>
                         <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制内容格式</button>
                         <span class="copy-success">✓ 已复制</span>
                         <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
@@ -622,8 +647,8 @@
                 }
 
                 // 将元素添加到容器中
-                container.appendChild(info);
                 container.appendChild(contentInfo);
+                container.appendChild(saveTip);
                 container.appendChild(actionButtons);
 
                 // 更新结果区域
