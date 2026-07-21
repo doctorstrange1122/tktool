@@ -592,6 +592,11 @@
                 const copySuccess = contentInfo.querySelector('.copy-success');
                 copySuccess.style.display = 'inline';
 
+                // 长按保存提示
+                const saveTip = document.createElement('div');
+                saveTip.style.cssText = 'font-size:13px;color:#5a7a96;margin:8px 0;font-weight:500;';
+                saveTip.textContent = '👆 长按二维码图片可保存至图库';
+
                 // 鸿蒙设备操作引导提示
                 const harmonyGuide = document.createElement('div');
                 harmonyGuide.style.cssText = 'background:#fdf6e8;border:1px solid #e8d8b0;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px;color:#9a7e3a;text-align:left;line-height:1.6;';
@@ -614,7 +619,6 @@
                     container.appendChild(mergedImg);
 
                     actionButtons.innerHTML = `
-                        <button onclick="downloadQRCodeWithText()">下载带文字二维码(.jpg)</button>
                         <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制内容格式</button>
                         <span class="copy-success">✓ 已复制</span>
                         <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
@@ -631,7 +635,6 @@
                     container.appendChild(img);
 
                     actionButtons.innerHTML = `
-                        <button onclick="downloadQRCode()">下载二维码(.jpg)</button>
                         <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制内容格式</button>
                         <span class="copy-success">✓ 已复制</span>
                         <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
@@ -641,6 +644,7 @@
                 // 将元素添加到容器中
                 container.appendChild(info);
                 container.appendChild(contentInfo);
+                container.appendChild(saveTip);
                 container.appendChild(harmonyGuide);
                 container.appendChild(actionButtons);
 
