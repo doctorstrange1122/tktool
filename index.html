@@ -75,6 +75,35 @@
             white-space: nowrap; flex-shrink: 0;
         }
         .clear-button:active { background: #e0e6ec; }
+        .scan-button {
+            padding: 12px 16px; font-size: 14px; font-weight: 600;
+            background: #6a9a7a; color: #fff;
+            border: none; border-radius: 10px; cursor: pointer;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .scan-button:active { background: #5a8a6a; }
+
+        /* 扫码弹窗 */
+        .scan-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        .scan-modal.active { display: flex; }
+        .scan-close {
+            position: absolute; top: 20px; right: 20px; width: 40px; height: 40px;
+            background: rgba(255,255,255,0.2); border: none; border-radius: 50%;
+            color: #fff; font-size: 20px; cursor: pointer; line-height: 40px; text-align: center;
+        }
+        .scan-close:active { background: rgba(255,255,255,0.4); }
+        .scan-viewport {
+            width: 280px; height: 280px; border-radius: 16px; overflow: hidden;
+            border: 3px solid #6a9a7a; position: relative;
+        }
+        .scan-viewport video { width: 100%; height: 100%; object-fit: cover; }
+        .scan-hint {
+            color: #fff; font-size: 14px; margin-top: 16px; text-align: center;
+        }
 
         /* 提示文字 — 醒目颜色 */
         .tip-text { font-size: 13px; color: #d4884a; font-weight: 500; margin-top: 6px; }
@@ -202,6 +231,7 @@
             <label for="productLink">淘口令 / 分享文本</label>
             <div class="input-row">
                 <input type="text" id="productLink" placeholder="粘贴淘口令或分享文本" required>
+                <button class="scan-button" onclick="startScan()" title="扫码输入">📷 扫码</button>
                 <button class="clear-button" onclick="clearInput()">清空</button>
             </div>
             <div class="tip-text">直接粘贴淘口令或分享文本，自动解析获取商品ID</div>
@@ -235,6 +265,13 @@
     <div class="footer">秒杀商品二维码生成工具</div>
 </div>
 
+    <!-- 扫码弹窗 -->
+    <div class="scan-modal" id="scanModal">
+        <button class="scan-close" onclick="stopScan()">✕</button>
+        <div class="scan-viewport" id="scanViewport"></div>
+        <div class="scan-hint">将二维码对准框内，自动识别</div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script>
         // 全局变量存储当前生成的二维码画布
@@ -246,6 +283,61 @@
             document.getElementById('productLink').value = '';
             document.getElementById('customText').value = '';
         }
+
+        // ====== 扫码功能 ======
+        let html5QrCode = null;
+
+        async function startScan() {
+            const modal = document.getElementById('scanModal');
+            modal.classList.add('active');
+
+            // 动态加载 html5-qrcode 库
+            if (!window.Html5Qrcode) {
+                await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+            }
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode('scanViewport');
+            }
+
+            try {
+                await html5QrCode.start(
+                    { facingMode: 'environment' },
+                    { fps: 10, qrbox: { width: 220, height: 220 } },
+                    (decodedText) => {
+                        document.getElementById('productLink').value = decodedText;
+                        stopScan();
+                    },
+                    () => {} // 忽略未识别帧
+                );
+            } catch (err) {
+                console.error('扫码启动失败:', err);
+                alert('无法打开相机，请检查相机权限。也可以手动粘贴淘口令。');
+                stopScan();
+            }
+        }
+
+        async function stopScan() {
+            document.getElementById('scanModal').classList.remove('active');
+            if (html5QrCode && html5QrCode.isScanning) {
+                try {
+                    await html5QrCode.stop();
+                } catch (e) {
+                    console.warn('停止扫码异常:', e);
+                }
+            }
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        // ====== 扫码功能结束 ======
 
         // CORS 代理列表（按可靠性排序，依次尝试）
         const CORS_PROXIES = [
