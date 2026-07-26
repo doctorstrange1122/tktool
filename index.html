@@ -294,12 +294,32 @@
 
         // ====== 扫码功能 ======
         let html5QrCode = null;
+        // 检测是否在 APK 中运行（有 NativeBridge）
+        const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
 
         async function startScan() {
+            // APK 环境：调用系统原生相机拍照扫码
+            if (isInApp) {
+                // 注册回调
+                window.onScanResult = function(result) {
+                    if (result === 'CANCEL') {
+                        // 用户取消，什么都不做
+                    } else if (result === 'ERROR') {
+                        alert('扫码解析失败，请重试或手动粘贴淘口令');
+                    } else if (result === 'NOT_FOUND') {
+                        alert('未识别到二维码，请重新拍照');
+                    } else {
+                        document.getElementById('productLink').value = result;
+                    }
+                };
+                NativeBridge.startNativeScan();
+                return;
+            }
+
+            // 浏览器环境：使用 html5-qrcode Web API
             const modal = document.getElementById('scanModal');
             modal.classList.add('active');
 
-            // 动态加载 html5-qrcode 库
             if (!window.Html5Qrcode) {
                 await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
             }
@@ -308,18 +328,11 @@
                 html5QrCode = new Html5Qrcode('scanViewport');
             }
 
-            // 相机配置：尝试多种对焦模式，兼容不同手机
-            const cameraConfig = {
-                facingMode: 'environment',
-                // 不指定 focusMode，让浏览器选择默认/自动对焦
-                // 部分手机指定 'continuous' 反而会失败
-            };
+            const cameraConfig = { facingMode: 'environment' };
 
-            // 高级配置：尝试使用 torch（闪光灯）和 zoom 等增强功能
             const config = {
                 fps: 10,
                 qrbox: { width: 220, height: 220 },
-                // 禁止使用实验性功能，提高兼容性
                 experimentalFeatures: {
                     useBarCodeDetectorIfSupported: false
                 },
@@ -335,10 +348,9 @@
                         document.getElementById('productLink').value = decodedText;
                         stopScan();
                     },
-                    () => {} // 忽略未识别帧
+                    () => {}
                 );
 
-                // 扫码启动后，尝试手动设置对焦（如果支持）
                 setTimeout(() => {
                     tryApplyFocus();
                 }, 500);
