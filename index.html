@@ -308,20 +308,85 @@
                 html5QrCode = new Html5Qrcode('scanViewport');
             }
 
+            // 相机配置：尝试多种对焦模式，兼容不同手机
+            const cameraConfig = {
+                facingMode: 'environment',
+                // 不指定 focusMode，让浏览器选择默认/自动对焦
+                // 部分手机指定 'continuous' 反而会失败
+            };
+
+            // 高级配置：尝试使用 torch（闪光灯）和 zoom 等增强功能
+            const config = {
+                fps: 10,
+                qrbox: { width: 220, height: 220 },
+                // 禁止使用实验性功能，提高兼容性
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: false
+                },
+                aspectRatio: 1.0,
+                disableFlip: false,
+            };
+
             try {
                 await html5QrCode.start(
-                    { facingMode: 'environment' },
-                    { fps: 10, qrbox: { width: 220, height: 220 } },
+                    cameraConfig,
+                    config,
                     (decodedText) => {
                         document.getElementById('productLink').value = decodedText;
                         stopScan();
                     },
                     () => {} // 忽略未识别帧
                 );
+
+                // 扫码启动后，尝试手动设置对焦（如果支持）
+                setTimeout(() => {
+                    tryApplyFocus();
+                }, 500);
             } catch (err) {
                 console.error('扫码启动失败:', err);
                 alert('无法打开相机，请检查相机权限。也可以手动粘贴淘口令。');
                 stopScan();
+            }
+        }
+
+        // 尝试多种方式设置相机对焦，兼容不同手机
+        function tryApplyFocus() {
+            try {
+                const video = document.querySelector('#scanViewport video');
+                if (!video || !video.srcObject) return;
+
+                const stream = video.srcObject;
+                const track = stream.getVideoTracks()[0];
+                if (!track) return;
+
+                // 获取支持的能力范围
+                const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+                // 按优先级尝试不同的对焦模式
+                const focusModes = ['continuous', 'manual', 'single-shot', 'auto'];
+                const supportedMode = focusModes.find(mode => {
+                    if (capabilities.focusMode) {
+                        return capabilities.focusMode.includes(mode);
+                    }
+                    return false;
+                });
+
+                if (supportedMode) {
+                    track.applyConstraints({
+                        advanced: [{ focusMode: supportedMode }]
+                    }).then(() => {
+                        console.log('对焦模式已设置为:', supportedMode);
+                    }).catch(() => {
+                        // 静默失败，不影响扫码
+                    });
+                } else {
+                    // 不支持指定对焦模式，尝试通用约束
+                    track.applyConstraints({
+                        advanced: [{ focusDistance: 0.5 }]
+                    }).catch(() => {});
+                }
+            } catch (e) {
+                // 静默处理，不影响扫码功能
             }
         }
 
