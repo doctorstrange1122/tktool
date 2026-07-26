@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#FF4400">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="秒杀二维码">
+    <meta name="theme-color" content="#6a9a7a">
+    <link rel="manifest" href="/tktool/manifest.json">
     <title>秒杀商品过肥二维码生成</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -273,6 +276,11 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/tktool/sw.js');
+        }
+    </script>
     <script>
         // 全局变量存储当前生成的二维码画布
         let currentQRCodeCanvas = null;
