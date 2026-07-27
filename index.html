@@ -89,37 +89,42 @@
         }
         .scan-button:active { background: #5a8a6a; }
 
-        /* 扫码弹窗 - 全屏相机 + 扫码框 */
-        .scan-modal {
-            display: none; position: fixed; inset: 0;
-            background: #000; z-index: 9999; overflow: hidden;
+        /* 扫码框 - 嵌入式 */
+        .scan-container {
+            display: none;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 10px;
+            position: relative;
+            width: 100%;
+            max-width: 320px;
+            margin-left: auto;
+            margin-right: auto;
         }
-        .scan-modal.active { display: block; }
-        .scan-close {
-            position: absolute; top: 16px; right: 16px; width: 44px; height: 44px;
-            background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 50%; color: #fff; font-size: 22px; cursor: pointer;
-            line-height: 40px; text-align: center; z-index: 100;
-            padding: 0; -webkit-tap-highlight-color: transparent;
+        .scan-container.active { display: block; }
+        .scan-container video {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: cover;
         }
-        .scan-close:active { background: rgba(255,255,255,0.3); }
-        .scan-viewport {
-            position: absolute; inset: 0;
-            background: #000; z-index: 1;
-        }
-        .scan-viewport video {
-            width: 100%; height: 100%; object-fit: cover;
-        }
-        .scan-overlay {
-            position: absolute; inset: 0; z-index: 10;
-            pointer-events: none;
-        }
-        .scan-overlay svg { width: 100%; height: 100%; display: block; }
-        .scan-hint {
-            position: absolute; bottom: 80px; left: 0; right: 0;
-            color: rgba(255,255,255,0.85); font-size: 15px;
-            text-align: center; z-index: 20; pointer-events: none;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        .scan-container .scan-close-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 36px;
+            height: 36px;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 50%;
+            color: #fff;
+            font-size: 18px;
+            line-height: 34px;
+            text-align: center;
+            cursor: pointer;
+            z-index: 10;
+            padding: 0;
         }
 
         /* 提示文字 — 醒目颜色 */
@@ -251,6 +256,10 @@
                 <button class="scan-button" onclick="startScan()" title="扫码输入">📷 扫码</button>
                 <button class="clear-button" onclick="clearInput()">清空</button>
             </div>
+            <div class="scan-container" id="scanContainer">
+                <div id="scanViewport"></div>
+                <button class="scan-close-btn" onclick="stopScan()">✕</button>
+            </div>
             <div class="tip-text">直接粘贴淘口令或分享文本，自动解析获取商品ID</div>
         </div>
     </div>
@@ -282,17 +291,9 @@
     <div class="footer">秒杀商品二维码生成工具</div>
 </div>
 
-    <!-- 扫码弹窗 - 全屏相机 -->
-    <div class="scan-modal" id="scanModal">
-        <div class="scan-viewport" id="scanViewport"></div>
-        <div class="scan-overlay" id="scanOverlay"></div>
-        <div class="scan-hint">将二维码放入框内，自动识别</div>
-        <button class="scan-close" onclick="stopScan()">✕</button>
-    </div>
-
+    <!-- 扫码弹窗已移除，改用嵌入式扫码框 -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
-    <!-- jsQR: 轻量级 QR 解码（~40KB），比 html5-qrcode 轻 3 倍 -->
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/tktool/sw.js');
@@ -309,114 +310,11 @@
             document.getElementById('customText').value = '';
         }
 
-        // ====== 扫码功能（原生 getUserMedia + jsQR，秒开） ======
+        // ====== 扫码功能（html5-qrcode，嵌入式扫码框） ======
         const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
-
-        // 持久化的相机资源：video 元素常驻 DOM，stream 复用以实现秒开
-        let scanStream = null;       // MediaStream
-        let scanVideo = null;       // HTMLVideoElement
-        let scanTimer = null;       // requestAnimationFrame ID
-        let scanActive = false;
-
-        // 页面加载后静默创建隐藏的 video 元素
-        (function initScanVideo() {
-            scanVideo = document.createElement('video');
-            scanVideo.setAttribute('playsinline', '');
-            scanVideo.setAttribute('autoplay', '');
-            scanVideo.setAttribute('muted', '');
-            scanVideo.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;';
-            scanVideo.style.display = 'none';
-            document.getElementById('scanViewport').appendChild(scanVideo);
-        })();
-
-        // 选择后置摄像头（兼容华为/鸿蒙浏览器对 facingMode 支持差的问题）
-        async function pickBackCamera() {
-            try {
-                // 先请求一次临时权限，否则 enumerateDevices 中 label 为空
-                const tmpStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                tmpStream.getTracks().forEach(t => t.stop());
-
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(d => d.kind === 'videoinput');
-                const backCamera = videoDevices.find(d =>
-                    /back|rear|后置|背面|environment/i.test(d.label)
-                );
-                return backCamera ? backCamera.deviceId : (videoDevices[0] && videoDevices[0].deviceId);
-            } catch (e) {
-                console.error('枚举相机失败:', e);
-                return null;
-            }
-        }
-
-        // 启动相机流（仅首次需要请求权限和初始化硬件）
-        async function ensureCameraStream() {
-            if (scanStream) return scanStream;
-
-            const backDeviceId = await pickBackCamera();
-            const videoConstraint = backDeviceId
-                ? { deviceId: { exact: backDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-                : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } };
-
-            const constraints = { video: videoConstraint, audio: false };
-
-            scanStream = await navigator.mediaDevices.getUserMedia(constraints);
-            scanVideo.srcObject = scanStream;
-            await scanVideo.play();
-
-            // 尝试设置连续对焦
-            try {
-                const track = scanStream.getVideoTracks()[0];
-                if (track && track.getCapabilities) {
-                    const caps = track.getCapabilities();
-                    if (caps.focusMode && caps.focusMode.includes('continuous')) {
-                        await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-                    }
-                }
-            } catch (e) { /* 静默 */ }
-
-            return scanStream;
-        }
-
-        // jsQR 解码循环
-        function startDecodeLoop() {
-            if (scanTimer) return;
-            const tick = () => {
-                if (!scanActive) { scanTimer = null; return; }
-                if (scanVideo.readyState >= 2) {
-                    try {
-                        // 取画面中央区域（扫码框范围）做解码，减少计算量
-                        const vw = scanVideo.videoWidth;
-                        const vh = scanVideo.videoHeight;
-                        if (vw > 0 && vh > 0) {
-                            const size = Math.min(vw, vh) * 0.65;
-                            const sx = (vw - size) / 2;
-                            const sy = (vh - size) / 2;
-                            const canvas = document.createElement('canvas');
-                            canvas.width = size;
-                            canvas.height = size;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(scanVideo, sx, sy, size, size, 0, 0, size, size);
-                            const imageData = ctx.getImageData(0, 0, size, size);
-                            const code = jsQR(imageData.data, size, size);
-                            if (code) {
-                                document.getElementById('productLink').value = code.data;
-                                stopScan();
-                                return;
-                            }
-                        }
-                    } catch (e) { /* 忽略单帧解码错误 */ }
-                }
-                scanTimer = requestAnimationFrame(tick);
-            };
-            scanTimer = requestAnimationFrame(tick);
-        }
-
-        function stopDecodeLoop() {
-            if (scanTimer) { cancelAnimationFrame(scanTimer); scanTimer = null; }
-        }
+        let html5QrCode = null;
 
         async function startScan() {
-            // APK 环境
             if (isInApp) {
                 window.onScanResult = function(result) {
                     if (result === 'CANCEL') return;
@@ -430,17 +328,39 @@
                 return;
             }
 
-            scanActive = true;
-            const modal = document.getElementById('scanModal');
-            modal.classList.add('active');
-            drawScanOverlay();
-            scanVideo.style.display = 'block';
+            const container = document.getElementById('scanContainer');
+            container.classList.add('active');
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode('scanViewport');
+            }
+
+            // 先枚举相机选择后置
+            let cameraId = { facingMode: 'environment' };
+            try {
+                const cameras = await Html5Qrcode.getCameras();
+                if (cameras && cameras.length > 0) {
+                    const back = cameras.find(c => /back|rear|后置|背面|environment/i.test(c.label));
+                    if (back) cameraId = back.id;
+                }
+            } catch (e) { /* fallback to facingMode */ }
 
             try {
-                await ensureCameraStream();
-                startDecodeLoop();
+                await html5QrCode.start(
+                    cameraId,
+                    {
+                        fps: 10,
+                        qrbox: { width: 250, height: 250 },
+                        aspectRatio: 1.0
+                    },
+                    (decodedText) => {
+                        document.getElementById('productLink').value = decodedText;
+                        stopScan();
+                    },
+                    () => {}
+                );
             } catch (err) {
-                console.error('相机启动失败:', err);
+                console.error('扫码启动失败:', err);
                 let msg = '无法打开相机，请检查权限。';
                 if (err && err.name === 'NotAllowedError') msg = '相机权限被拒绝。请在浏览器设置中允许访问相机。';
                 else if (err && err.name === 'NotFoundError') msg = '未找到可用相机。';
@@ -450,52 +370,11 @@
         }
 
         async function stopScan() {
-            scanActive = false;
-            stopDecodeLoop();
-            document.getElementById('scanModal').classList.remove('active');
-            document.getElementById('scanOverlay').innerHTML = '';
-            scanVideo.style.display = 'none';
-            // 不释放 stream，下次扫码直接复用
-        }
-
-        // 页面卸载时释放相机
-        window.addEventListener('beforeunload', () => {
-            stopDecodeLoop();
-            if (scanStream) {
-                scanStream.getTracks().forEach(t => t.stop());
-                scanStream = null;
+            document.getElementById('scanContainer').classList.remove('active');
+            if (html5QrCode && html5QrCode.isScanning) {
+                try { await html5QrCode.stop(); } catch (e) {}
             }
-        });
-
-        // 绘制全屏扫码框遮罩（仅半透明遮罩）
-        function drawScanOverlay() {
-            const overlay = document.getElementById('scanOverlay');
-            if (!overlay) return;
-
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            const boxSize = Math.min(w, h) * 0.6;
-            const left = (w - boxSize) / 2;
-            const top = (h - boxSize) / 2;
-
-            overlay.innerHTML = `
-                <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <mask id="scanMask">
-                            <rect width="${w}" height="${h}" fill="white"/>
-                            <rect x="${left}" y="${top}" width="${boxSize}" height="${boxSize}" rx="16" fill="black"/>
-                        </mask>
-                    </defs>
-                    <rect width="${w}" height="${h}" fill="rgba(0,0,0,0.55)" mask="url(#scanMask)"/>
-                </svg>
-            `;
         }
-
-        window.addEventListener('resize', function() {
-            if (document.getElementById('scanModal').classList.contains('active')) {
-                drawScanOverlay();
-            }
-        });
         // ====== 扫码功能结束 ======
 
         // CORS 代理列表（按可靠性排序，依次尝试）
