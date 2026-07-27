@@ -114,19 +114,33 @@
             text-shadow: 0 1px 3px rgba(0,0,0,0.6);
         }
         /* 隐藏 html5-qrcode 自带的内部框 */
+        #scanViewport,
+        #scanViewport *,
+        #scanViewport__scan_region,
+        #scanViewport__scan_region *,
+        #scanViewport__dashboard_section_csr,
+        #scanViewport__dashboard_section_csr * {
+            border: none !important;
+            box-shadow: none !important;
+            background-image: none !important;
+        }
         #scanViewport img,
         #scanViewport__scan_region img,
         #scanViewport__dashboard_section_csr img,
-        #scanViewport__dashboard_section_csr span {
+        #scanViewport__scan_region canvas,
+        #scanViewport__dashboard_section_csr canvas,
+        #scanViewport__scan_region > div:not(video) {
             display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
         }
         #scanViewport__scan_region {
             background: transparent !important;
             border: none !important;
             position: absolute !important;
             inset: 0 !important;
-            width: auto !important;
-            height: auto !important;
+            width: 100% !important;
+            height: 100% !important;
         }
 
         /* 提示文字 — 醒目颜色 */
@@ -366,10 +380,9 @@
                 console.error('获取相机失败:', e);
             }
 
-            // 纯全屏：无扫码框，整个画面都是识别区域
+            // 纯全屏：不设置 qrbox，让 html5-qrcode 使用整个取景区域
             const config = {
                 fps: 10,
-                qrbox: { width: 250, height: 250 },
                 aspectRatio: 1.0,
                 disableFlip: false,
                 videoConstraints: {
