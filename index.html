@@ -328,12 +328,19 @@
                 return;
             }
 
+            // 先停掉之前的扫码
+            if (html5QrCode && html5QrCode.isScanning) {
+                try { await html5QrCode.stop(); } catch (e) {}
+            }
+
             const container = document.getElementById('scanContainer');
             container.classList.add('active');
 
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode('scanViewport');
-            }
+            // 每次重新创建实例，避免 display:none 状态下创建导致的问题
+            // 先清空 viewport 再重建
+            const viewport = document.getElementById('scanViewport');
+            viewport.innerHTML = '';
+            html5QrCode = new Html5Qrcode('scanViewport');
 
             // 先枚举相机选择后置
             let cameraId = { facingMode: 'environment' };
