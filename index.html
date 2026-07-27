@@ -508,7 +508,7 @@
             }
         }
 
-        // 绘制全屏扫码框遮罩（SVG，精确定位）
+        // 绘制全屏扫码框遮罩（仅半透明遮罩）
         function drawScanOverlay() {
             const overlay = document.getElementById('scanOverlay');
             if (!overlay) return;
@@ -518,9 +518,6 @@
             const boxSize = Math.min(w, h) * 0.6;
             const left = (w - boxSize) / 2;
             const top = (h - boxSize) / 2;
-            const corner = Math.round(boxSize * 0.12);
-            const stroke = 5;
-            const color = '#6a9a7a';
 
             overlay.innerHTML = `
                 <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
@@ -531,10 +528,6 @@
                         </mask>
                     </defs>
                     <rect width="${w}" height="${h}" fill="rgba(0,0,0,0.55)" mask="url(#scanMask)"/>
-                    <path d="M${left + stroke/2} ${top + corner} V${top + stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
-                    <path d="M${left + boxSize - corner} ${top + stroke/2} H${left + boxSize - stroke/2} V${top + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
-                    <path d="M${left + stroke/2} ${top + boxSize - corner} V${top + boxSize - stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
-                    <path d="M${left + boxSize - corner} ${top + boxSize - stroke/2} H${left + boxSize - stroke/2} V${top + boxSize - corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
                 </svg>
             `;
         }
