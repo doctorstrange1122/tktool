@@ -86,26 +86,80 @@
         }
         .scan-button:active { background: #5a8a6a; }
 
-        /* 扫码弹窗 */
+        /* 扫码弹窗 - 全屏相机 + 扫码框 */
         .scan-modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column;
-            align-items: center; justify-content: center;
+            display: none; position: fixed; inset: 0;
+            background: #000; z-index: 9999; overflow: hidden;
         }
-        .scan-modal.active { display: flex; }
+        .scan-modal.active { display: block; }
         .scan-close {
-            position: absolute; top: 20px; right: 20px; width: 40px; height: 40px;
-            background: rgba(255,255,255,0.2); border: none; border-radius: 50%;
-            color: #fff; font-size: 20px; cursor: pointer; line-height: 40px; text-align: center;
+            position: absolute; top: 16px; right: 16px; width: 44px; height: 44px;
+            background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%; color: #fff; font-size: 22px; cursor: pointer;
+            line-height: 40px; text-align: center; z-index: 100;
+            padding: 0; -webkit-tap-highlight-color: transparent;
         }
-        .scan-close:active { background: rgba(255,255,255,0.4); }
+        .scan-close:active { background: rgba(255,255,255,0.3); }
         .scan-viewport {
-            width: 280px; height: 280px; border-radius: 16px; overflow: hidden;
-            border: 3px solid #6a9a7a; position: relative;
+            position: absolute; inset: 0;
+            background: #000; z-index: 1;
         }
-        .scan-viewport video { width: 100%; height: 100%; object-fit: cover; }
+        .scan-viewport video {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .scan-overlay {
+            position: absolute; inset: 0; z-index: 10;
+            pointer-events: none;
+        }
+        .scan-overlay svg { width: 100%; height: 100%; display: block; }
+        /* 强制隐藏 html5-qrcode 自带的所有扫码框和阴影层 */
+        #scanViewport,
+        #scanViewport__scan_region,
+        #scanViewport__dashboard_section,
+        #scanViewport__dashboard_section_csr {
+            background: transparent !important;
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        #scanViewport *,
+        #scanViewport__scan_region *,
+        #scanViewport__dashboard_section *,
+        #scanViewport__dashboard_section_csr * {
+            border: none !important;
+            box-shadow: none !important;
+            background-image: none !important;
+        }
+        #scanViewport img,
+        #scanViewport__scan_region img,
+        #scanViewport__dashboard_section img,
+        #scanViewport__dashboard_section_csr img,
+        #scanViewport canvas,
+        #scanViewport__scan_region canvas,
+        #scanViewport__dashboard_section canvas,
+        #scanViewport__dashboard_section_csr canvas,
+        #scanViewport__scan_region > div,
+        #scanViewport__scan_region > div:not(video),
+        #scanViewport__dashboard_section > div,
+        #scanViewport__dashboard_section_csr > div,
+        #scanViewport__dashboard_section_csr > span {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        #scanViewport video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+        }
         .scan-hint {
-            color: #fff; font-size: 14px; margin-top: 16px; text-align: center;
+            position: absolute; bottom: 80px; left: 0; right: 0;
+            color: rgba(255,255,255,0.85); font-size: 15px;
+            text-align: center; z-index: 20; pointer-events: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
         }
 
         /* 提示文字 — 醒目颜色 */
@@ -268,11 +322,12 @@
     <div class="footer">秒杀商品二维码生成工具</div>
 </div>
 
-    <!-- 扫码弹窗 -->
+    <!-- 扫码弹窗 - 全屏相机 -->
     <div class="scan-modal" id="scanModal">
-        <button class="scan-close" onclick="stopScan()">✕</button>
         <div class="scan-viewport" id="scanViewport"></div>
-        <div class="scan-hint">将二维码对准框内，自动识别</div>
+        <div class="scan-overlay" id="scanOverlay"></div>
+        <div class="scan-hint">将二维码放入框内，自动识别</div>
+        <button class="scan-close" onclick="stopScan()">✕</button>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
@@ -294,39 +349,206 @@
 
         // ====== 扫码功能 ======
         let html5QrCode = null;
+        const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
 
         async function startScan() {
+            // APK 环境：调用原生扫码
+            if (isInApp) {
+                window.onScanResult = function(result) {
+                    if (result === 'CANCEL') {
+                    } else if (result === 'ERROR' || result === 'NOT_FOUND') {
+                        alert('未识别到二维码，请重新拍照');
+                    } else {
+                        document.getElementById('productLink').value = result;
+                    }
+                };
+                NativeBridge.startNativeScan();
+                return;
+            }
+
+            // 浏览器环境：全屏相机 + SVG 遮罩扫码框
             const modal = document.getElementById('scanModal');
             modal.classList.add('active');
 
-            // 动态加载 html5-qrcode 库
+            drawScanOverlay();
+
             if (!window.Html5Qrcode) {
-                await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+                try {
+                    await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+                } catch (e) {
+                    alert('扫码组件加载失败，请检查网络后重试');
+                    stopScan();
+                    return;
+                }
+            }
+
+            if (!window.Html5Qrcode) {
+                try {
+                    await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+                } catch (e) {
+                    alert('扫码组件加载失败，请检查网络后重试');
+                    stopScan();
+                    return;
+                }
             }
 
             if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode('scanViewport');
+                html5QrCode = new Html5Qrcode('scanViewport', true);
             }
 
+            // 获取相机列表，选择后置相机
+            let cameraId = null;
             try {
-                await html5QrCode.start(
-                    { facingMode: 'environment' },
-                    { fps: 10, qrbox: { width: 220, height: 220 } },
-                    (decodedText) => {
-                        document.getElementById('productLink').value = decodedText;
-                        stopScan();
-                    },
-                    () => {} // 忽略未识别帧
+                const cameras = await Html5Qrcode.getCameras();
+                if (!cameras || cameras.length === 0) {
+                    throw new Error('没有找到可用相机');
+                }
+                // 优先选择后置相机（label 包含 back / 后置 / 背面 / environment）
+                const backCamera = cameras.find(c =>
+                    /back|rear|后置|背面|environment/i.test(c.label)
                 );
+                cameraId = backCamera ? backCamera.id : cameras[0].id;
+            } catch (e) {
+                console.error('获取相机失败:', e);
+            }
+
+            // 全屏识别：禁用 html5-qrcode 自带框，只保留 SVG 遮罩框
+            const config = {
+                fps: 10,
+                aspectRatio: 1.0,
+                disableFlip: false,
+                videoConstraints: {
+                    facingMode: 'environment',
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
+            };
+
+            try {
+                if (cameraId) {
+                    await html5QrCode.start(
+                        cameraId,
+                        config,
+                        (decodedText) => {
+                            document.getElementById('productLink').value = decodedText;
+                            stopScan();
+                        },
+                        () => {}
+                    );
+                } else {
+                    await html5QrCode.start(
+                        { facingMode: 'environment' },
+                        config,
+                        (decodedText) => {
+                            document.getElementById('productLink').value = decodedText;
+                            stopScan();
+                        },
+                        () => {}
+                    );
+                }
+
+                // 相机启动后重新绘遮罩 + 设置对焦
+                drawScanOverlay();
+                setTimeout(() => {
+                    tryApplyFocus();
+                }, 600);
             } catch (err) {
                 console.error('扫码启动失败:', err);
-                alert('无法打开相机，请检查相机权限。也可以手动粘贴淘口令。');
+                let msg = '无法打开相机，请检查相机权限。也可以手动粘贴淘口令。';
+                if (err && err.name === 'NotAllowedError') {
+                    msg = '相机权限被拒绝。请在浏览器设置中允许访问相机。';
+                } else if (err && err.name === 'NotFoundError') {
+                    msg = '未找到可用相机，请确认设备相机正常。';
+                } else if (err && err.message) {
+                    msg = '无法打开相机：' + err.message;
+                }
+                alert(msg);
                 stopScan();
             }
         }
 
+        // 尝试多种方式设置相机对焦，兼容不同手机
+        function tryApplyFocus() {
+            try {
+                const video = document.querySelector('#scanViewport video');
+                if (!video || !video.srcObject) return;
+
+                const stream = video.srcObject;
+                const track = stream.getVideoTracks()[0];
+                if (!track) return;
+
+                // 获取支持的能力范围
+                const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+
+                // 按优先级尝试不同的对焦模式
+                const focusModes = ['continuous', 'manual', 'single-shot', 'auto'];
+                const supportedMode = focusModes.find(mode => {
+                    if (capabilities.focusMode) {
+                        return capabilities.focusMode.includes(mode);
+                    }
+                    return false;
+                });
+
+                if (supportedMode) {
+                    track.applyConstraints({
+                        advanced: [{ focusMode: supportedMode }]
+                    }).then(() => {
+                        console.log('对焦模式已设置为:', supportedMode);
+                    }).catch(() => {
+                        // 静默失败，不影响扫码
+                    });
+                } else {
+                    // 不支持指定对焦模式，尝试通用约束
+                    track.applyConstraints({
+                        advanced: [{ focusDistance: 0.5 }]
+                    }).catch(() => {});
+                }
+            } catch (e) {
+                // 静默处理，不影响扫码功能
+            }
+        }
+
+        // 绘制全屏扫码框遮罩（SVG，精确定位）
+        function drawScanOverlay() {
+            const overlay = document.getElementById('scanOverlay');
+            if (!overlay) return;
+
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const boxSize = Math.min(w, h) * 0.6;
+            const left = (w - boxSize) / 2;
+            const top = (h - boxSize) / 2;
+            const corner = Math.round(boxSize * 0.12);
+            const stroke = 5;
+            const color = '#6a9a7a';
+
+            overlay.innerHTML = `
+                <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <mask id="scanMask">
+                            <rect width="${w}" height="${h}" fill="white"/>
+                            <rect x="${left}" y="${top}" width="${boxSize}" height="${boxSize}" rx="16" fill="black"/>
+                        </mask>
+                    </defs>
+                    <rect width="${w}" height="${h}" fill="rgba(0,0,0,0.55)" mask="url(#scanMask)"/>
+                    <path d="M${left + stroke/2} ${top + corner} V${top + stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                    <path d="M${left + boxSize - corner} ${top + stroke/2} H${left + boxSize - stroke/2} V${top + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                    <path d="M${left + stroke/2} ${top + boxSize - corner} V${top + boxSize - stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                    <path d="M${left + boxSize - corner} ${top + boxSize - stroke/2} H${left + boxSize - stroke/2} V${top + boxSize - corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                </svg>
+            `;
+        }
+
+        window.addEventListener('resize', function() {
+            if (document.getElementById('scanModal').classList.contains('active')) {
+                drawScanOverlay();
+            }
+        });
+
         async function stopScan() {
             document.getElementById('scanModal').classList.remove('active');
+            var overlay = document.getElementById('scanOverlay');
+            if (overlay) overlay.innerHTML = '';
             if (html5QrCode && html5QrCode.isScanning) {
                 try {
                     await html5QrCode.stop();
