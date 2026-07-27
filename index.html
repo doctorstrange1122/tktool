@@ -86,7 +86,7 @@
         }
         .scan-button:active { background: #5a8a6a; }
 
-        /* 扫码弹窗 - 全屏相机 */
+        /* 扫码弹窗 - 纯全屏相机 */
         .scan-modal {
             display: none; position: fixed; inset: 0;
             background: #000; z-index: 9999; overflow: hidden;
@@ -94,7 +94,7 @@
         .scan-modal.active { display: block; }
         .scan-close {
             position: absolute; top: 16px; right: 16px; width: 44px; height: 44px;
-            background: rgba(0,0,0,0.4); border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.3);
             border-radius: 50%; color: #fff; font-size: 22px; cursor: pointer;
             line-height: 40px; text-align: center; z-index: 100;
             padding: 0; -webkit-tap-highlight-color: transparent;
@@ -107,25 +107,26 @@
         .scan-viewport video {
             width: 100%; height: 100%; object-fit: cover;
         }
-        .scan-overlay {
-            position: absolute; inset: 0; z-index: 10;
-            pointer-events: none;
-        }
-        .scan-overlay svg { width: 100%; height: 100%; }
         .scan-hint {
-            position: absolute; bottom: 80px; left: 0; right: 0;
-            color: rgba(255,255,255,0.85); font-size: 15px;
+            position: absolute; bottom: 60px; left: 0; right: 0;
+            color: rgba(255,255,255,0.7); font-size: 15px;
             text-align: center; z-index: 20; pointer-events: none;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.6);
         }
-        /* html5-qrcode 自带的内部扫码框隐藏，只用它做识别区域 */
-        #scanViewport img, #scanViewport__dashboard_section_csr span img,
-        #scanViewport__scan_region img {
+        /* 隐藏 html5-qrcode 自带的内部框 */
+        #scanViewport img,
+        #scanViewport__scan_region img,
+        #scanViewport__dashboard_section_csr img,
+        #scanViewport__dashboard_section_csr span {
             display: none !important;
         }
         #scanViewport__scan_region {
             background: transparent !important;
             border: none !important;
+            position: absolute !important;
+            inset: 0 !important;
+            width: auto !important;
+            height: auto !important;
         }
 
         /* 提示文字 — 醒目颜色 */
@@ -288,11 +289,10 @@
     <div class="footer">秒杀商品二维码生成工具</div>
 </div>
 
-    <!-- 扫码弹窗 - 全屏相机 -->
+    <!-- 扫码弹窗 - 纯全屏 -->
     <div class="scan-modal" id="scanModal">
         <div class="scan-viewport" id="scanViewport"></div>
-        <div class="scan-overlay" id="scanOverlay"></div>
-        <div class="scan-hint">将二维码放入框内，自动识别</div>
+        <div class="scan-hint">将二维码对准屏幕，自动识别</div>
         <button class="scan-close" onclick="stopScan()">✕</button>
     </div>
 
@@ -317,17 +317,11 @@
         let html5QrCode = null;
         const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
 
-        // 扫码框尺寸（屏幕短边的 60%）
-        function getScanBoxSize() {
-            return Math.min(window.innerWidth, window.innerHeight) * 0.6;
-        }
-
         async function startScan() {
             // APK 环境：调用原生扫码
             if (isInApp) {
                 window.onScanResult = function(result) {
                     if (result === 'CANCEL') {
-                        // 用户取消
                     } else if (result === 'ERROR' || result === 'NOT_FOUND') {
                         alert('未识别到二维码，请重新拍照');
                     } else {
@@ -338,12 +332,9 @@
                 return;
             }
 
-            // 浏览器环境
+            // 浏览器环境：纯全屏相机预览
             const modal = document.getElementById('scanModal');
             modal.classList.add('active');
-
-            // 先显示遮罩，避免黑屏等待
-            drawScanOverlay();
 
             if (!window.Html5Qrcode) {
                 try {
@@ -373,18 +364,12 @@
                 cameraId = backCamera ? backCamera.id : cameras[0].id;
             } catch (e) {
                 console.error('获取相机失败:', e);
-                // 获取失败时回退到 facingMode
             }
 
-            // qrbox 用函数，确保和遮罩一致
-            const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-                const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.6;
-                return { width: size, height: size };
-            };
-
+            // 纯全屏：无扫码框，整个画面都是识别区域
             const config = {
                 fps: 10,
-                qrbox: qrboxFunction,
+                qrbox: { width: 250, height: 250 },
                 aspectRatio: 1.0,
                 disableFlip: false,
                 videoConstraints: {
@@ -417,10 +402,7 @@
                     );
                 }
 
-                // 相机启动后重新计算遮罩位置
-                drawScanOverlay();
-
-                // 尝试设置对焦
+                // 相机启动后尝试设置对焦
                 setTimeout(() => {
                     tryApplyFocus();
                 }, 600);
@@ -480,51 +462,8 @@
             }
         }
 
-        // 绘制全屏扫码框遮罩（用 SVG，位置精确）
-        function drawScanOverlay() {
-            const overlay = document.getElementById('scanOverlay');
-            if (!overlay) return;
-
-            const w = window.innerWidth;
-            const h = window.innerHeight;
-            const boxSize = getScanBoxSize();
-            const left = (w - boxSize) / 2;
-            const top = (h - boxSize) / 2;
-            const corner = Math.round(boxSize * 0.12);
-            const stroke = 5;
-            const color = '#6a9a7a';
-
-            overlay.innerHTML = `
-                <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
-                    <!-- 半透明遮罩 -->
-                    <defs>
-                        <mask id="scanMask">
-                            <rect width="${w}" height="${h}" fill="white"/>
-                            <rect x="${left}" y="${top}" width="${boxSize}" height="${boxSize}" rx="16" fill="black"/>
-                        </mask>
-                    </defs>
-                    <rect width="${w}" height="${h}" fill="rgba(0,0,0,0.55)" mask="url(#scanMask)"/>
-                    <!-- 四角装饰 -->
-                    <path d="M${left + stroke/2} ${top + corner} V${top + stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
-                    <path d="M${left + boxSize - corner} ${top + stroke/2} H${left + boxSize - stroke/2} V${top + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
-                    <path d="M${left + stroke/2} ${top + boxSize - corner} V${top + boxSize - stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
-                    <path d="M${left + boxSize - corner} ${top + boxSize - stroke/2} H${left + boxSize - stroke/2} V${top + boxSize - corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
-                </svg>
-            `;
-        }
-
-        // 监听窗口大小变化，更新遮罩
-        window.addEventListener('resize', () => {
-            if (document.getElementById('scanModal').classList.contains('active')) {
-                drawScanOverlay();
-            }
-        });
-
         async function stopScan() {
             document.getElementById('scanModal').classList.remove('active');
-            // 清空遮罩
-            const overlay = document.getElementById('scanOverlay');
-            if (overlay) overlay.innerHTML = '';
             if (html5QrCode && html5QrCode.isScanning) {
                 try {
                     await html5QrCode.stop();
