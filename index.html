@@ -342,19 +342,9 @@
             viewport.innerHTML = '';
             html5QrCode = new Html5Qrcode('scanViewport');
 
-            // 先枚举相机选择后置
-            let cameraId = { facingMode: 'environment' };
-            try {
-                const cameras = await Html5Qrcode.getCameras();
-                if (cameras && cameras.length > 0) {
-                    const back = cameras.find(c => /back|rear|后置|背面|environment/i.test(c.label));
-                    if (back) cameraId = back.id;
-                }
-            } catch (e) { /* fallback to facingMode */ }
-
             try {
                 await html5QrCode.start(
-                    cameraId,
+                    { facingMode: 'environment' },
                     {
                         fps: 10,
                         qrbox: { width: 250, height: 250 },
