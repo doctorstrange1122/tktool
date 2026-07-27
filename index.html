@@ -112,6 +112,49 @@
             pointer-events: none;
         }
         .scan-overlay svg { width: 100%; height: 100%; display: block; }
+        /* 强制隐藏 html5-qrcode 自带的所有扫码框和阴影层 */
+        #scanViewport,
+        #scanViewport__scan_region,
+        #scanViewport__dashboard_section,
+        #scanViewport__dashboard_section_csr {
+            background: transparent !important;
+            position: absolute !important;
+            inset: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        #scanViewport *,
+        #scanViewport__scan_region *,
+        #scanViewport__dashboard_section *,
+        #scanViewport__dashboard_section_csr * {
+            border: none !important;
+            box-shadow: none !important;
+            background-image: none !important;
+        }
+        #scanViewport img,
+        #scanViewport__scan_region img,
+        #scanViewport__dashboard_section img,
+        #scanViewport__dashboard_section_csr img,
+        #scanViewport canvas,
+        #scanViewport__scan_region canvas,
+        #scanViewport__dashboard_section canvas,
+        #scanViewport__dashboard_section_csr canvas,
+        #scanViewport__scan_region > div,
+        #scanViewport__scan_region > div:not(video),
+        #scanViewport__dashboard_section > div,
+        #scanViewport__dashboard_section_csr > div,
+        #scanViewport__dashboard_section_csr > span {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+        #scanViewport video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+        }
         .scan-hint {
             position: absolute; bottom: 80px; left: 0; right: 0;
             color: rgba(255,255,255,0.85); font-size: 15px;
@@ -369,15 +412,9 @@
                 console.error('获取相机失败:', e);
             }
 
-            // 全屏 + 扫码框：qrbox 用函数匹配遮罩
-            const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
-                const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.6;
-                return { width: size, height: size };
-            };
-
+            // 全屏识别：禁用 html5-qrcode 自带框，只保留 SVG 遮罩框
             const config = {
                 fps: 10,
-                qrbox: qrboxFunction,
                 aspectRatio: 1.0,
                 disableFlip: false,
                 videoConstraints: {
