@@ -89,42 +89,26 @@
         }
         .scan-button:active { background: #5a8a6a; }
 
-        /* 扫码框 - 嵌入式 */
-        .scan-container {
-            display: none;
-            background: #000;
-            border-radius: 12px;
-            overflow: hidden;
-            margin-top: 10px;
-            position: relative;
-            width: 100%;
-            max-width: 320px;
-            margin-left: auto;
-            margin-right: auto;
+        /* 扫码弹窗 */
+        .scan-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 9999; flex-direction: column;
+            align-items: center; justify-content: center;
         }
-        .scan-container.active { display: block; }
-        .scan-container video {
-            width: 100%;
-            height: auto;
-            display: block;
-            object-fit: cover;
+        .scan-modal.active { display: flex; }
+        .scan-close {
+            position: absolute; top: 20px; right: 20px; width: 40px; height: 40px;
+            background: rgba(255,255,255,0.2); border: none; border-radius: 50%;
+            color: #fff; font-size: 20px; cursor: pointer; line-height: 40px; text-align: center;
         }
-        .scan-container .scan-close-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            width: 36px;
-            height: 36px;
-            background: rgba(0,0,0,0.5);
-            border: 1px solid rgba(255,255,255,0.4);
-            border-radius: 50%;
-            color: #fff;
-            font-size: 18px;
-            line-height: 34px;
-            text-align: center;
-            cursor: pointer;
-            z-index: 10;
-            padding: 0;
+        .scan-close:active { background: rgba(255,255,255,0.4); }
+        .scan-viewport {
+            width: 280px; height: 280px; border-radius: 16px; overflow: hidden;
+            border: 3px solid #6a9a7a; position: relative;
+        }
+        .scan-viewport video { width: 100%; height: 100%; object-fit: cover; }
+        .scan-hint {
+            color: #fff; font-size: 14px; margin-top: 16px; text-align: center;
         }
 
         /* 提示文字 — 醒目颜色 */
@@ -256,10 +240,6 @@
                 <button class="scan-button" onclick="startScan()" title="扫码输入">📷 扫码</button>
                 <button class="clear-button" onclick="clearInput()">清空</button>
             </div>
-            <div class="scan-container" id="scanContainer">
-                <div id="scanViewport"></div>
-                <button class="scan-close-btn" onclick="stopScan()">✕</button>
-            </div>
             <div class="tip-text">直接粘贴淘口令或分享文本，自动解析获取商品ID</div>
         </div>
     </div>
@@ -291,7 +271,13 @@
     <div class="footer">秒杀商品二维码生成工具</div>
 </div>
 
-    <!-- 扫码弹窗已移除，改用嵌入式扫码框 -->
+    <!-- 扫码弹窗 -->
+    <div class="scan-modal" id="scanModal">
+        <button class="scan-close" onclick="stopScan()">✕</button>
+        <div class="scan-viewport" id="scanViewport"></div>
+        <div class="scan-hint">将二维码对准框内，自动识别</div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script>
@@ -310,7 +296,7 @@
             document.getElementById('customText').value = '';
         }
 
-        // ====== 扫码功能（html5-qrcode，嵌入式扫码框） ======
+        // ====== 扫码功能（html5-qrcode，浮窗弹窗） ======
         const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
         let html5QrCode = null;
 
@@ -318,7 +304,9 @@
             if (isInApp) {
                 window.onScanResult = function(result) {
                     if (result === 'CANCEL') return;
-                    if (result === 'ERROR' || result === 'NOT_FOUND') {
+                    if (result === 'ERROR') {
+                        alert('扫码解析失败，请重试或手动粘贴淘口令');
+                    } else if (result === 'NOT_FOUND') {
                         alert('未识别到二维码，请重新拍照');
                     } else {
                         document.getElementById('productLink').value = result;
@@ -328,27 +316,21 @@
                 return;
             }
 
-            // 先停掉之前的扫码
-            if (html5QrCode && html5QrCode.isScanning) {
-                try { await html5QrCode.stop(); } catch (e) {}
+            const modal = document.getElementById('scanModal');
+            modal.classList.add('active');
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode('scanViewport');
             }
-
-            const container = document.getElementById('scanContainer');
-            container.classList.add('active');
-
-            // 每次重新创建实例，避免 display:none 状态下创建导致的问题
-            // 先清空 viewport 再重建
-            const viewport = document.getElementById('scanViewport');
-            viewport.innerHTML = '';
-            html5QrCode = new Html5Qrcode('scanViewport');
 
             try {
                 await html5QrCode.start(
                     { facingMode: 'environment' },
                     {
                         fps: 10,
-                        qrbox: { width: 250, height: 250 },
-                        aspectRatio: 1.0
+                        qrbox: { width: 220, height: 220 },
+                        aspectRatio: 1.0,
+                        disableFlip: false
                     },
                     (decodedText) => {
                         document.getElementById('productLink').value = decodedText;
@@ -356,18 +338,32 @@
                     },
                     () => {}
                 );
+
+                setTimeout(() => tryApplyFocus(), 500);
             } catch (err) {
                 console.error('扫码启动失败:', err);
-                let msg = '无法打开相机，请检查权限。';
-                if (err && err.name === 'NotAllowedError') msg = '相机权限被拒绝。请在浏览器设置中允许访问相机。';
-                else if (err && err.name === 'NotFoundError') msg = '未找到可用相机。';
-                alert(msg);
+                alert('无法打开相机，请检查相机权限。也可以手动粘贴淘口令。');
                 stopScan();
             }
         }
 
+        function tryApplyFocus() {
+            try {
+                const video = document.querySelector('#scanViewport video');
+                if (!video || !video.srcObject) return;
+                const track = video.srcObject.getVideoTracks()[0];
+                if (!track) return;
+                const caps = track.getCapabilities ? track.getCapabilities() : {};
+                const modes = ['continuous', 'manual', 'single-shot', 'auto'];
+                const mode = modes.find(m => caps.focusMode && caps.focusMode.includes(m));
+                if (mode) {
+                    track.applyConstraints({ advanced: [{ focusMode: mode }] }).catch(() => {});
+                }
+            } catch (e) {}
+        }
+
         async function stopScan() {
-            document.getElementById('scanContainer').classList.remove('active');
+            document.getElementById('scanModal').classList.remove('active');
             if (html5QrCode && html5QrCode.isScanning) {
                 try { await html5QrCode.stop(); } catch (e) {}
             }
