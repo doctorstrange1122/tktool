@@ -88,7 +88,7 @@
 
         /* 扫码弹窗 - 全屏相机 */
         .scan-modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; position: fixed; inset: 0;
             background: #000; z-index: 9999; overflow: hidden;
         }
         .scan-modal.active { display: block; }
@@ -97,69 +97,35 @@
             background: rgba(0,0,0,0.4); border: 2px solid rgba(255,255,255,0.3);
             border-radius: 50%; color: #fff; font-size: 22px; cursor: pointer;
             line-height: 40px; text-align: center; z-index: 100;
+            padding: 0; -webkit-tap-highlight-color: transparent;
         }
         .scan-close:active { background: rgba(255,255,255,0.3); }
         .scan-viewport {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            overflow: hidden; background: #000;
+            position: absolute; inset: 0;
+            background: #000; z-index: 1;
         }
         .scan-viewport video {
             width: 100%; height: 100%; object-fit: cover;
-            position: absolute; top: 0; left: 0;
         }
-        /* 扫码框叠加层 */
         .scan-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 10;
+            position: absolute; inset: 0; z-index: 10;
+            pointer-events: none;
         }
-        .scan-frame {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 240px; height: 240px;
-        }
-        .scan-frame::before,
-        .scan-frame::after {
-            content: ''; position: absolute;
-            width: 28px; height: 28px;
-            border-color: #6a9a7a; border-style: solid;
-        }
-        .scan-frame::before {
-            top: 0; left: 0;
-            border-width: 4px 0 0 4px;
-            border-radius: 6px 0 0 0;
-        }
-        .scan-frame::after {
-            bottom: 0; right: 0;
-            border-width: 0 4px 4px 0;
-            border-radius: 0 0 6px 0;
-        }
-        .scan-frame-inner {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        }
-        .scan-frame-inner::before,
-        .scan-frame-inner::after {
-            content: ''; position: absolute;
-            width: 28px; height: 28px;
-            border-color: #6a9a7a; border-style: solid;
-        }
-        .scan-frame-inner::before {
-            top: 0; right: 0;
-            border-width: 4px 4px 0 0;
-            border-radius: 0 6px 0 0;
-        }
-        .scan-frame-inner::after {
-            bottom: 0; left: 0;
-            border-width: 0 0 4px 4px;
-            border-radius: 0 0 0 6px;
-        }
-        /* 半透明遮罩（扫码框外区域） */
-        .scan-mask-top, .scan-mask-bottom, .scan-mask-left, .scan-mask-right {
-            position: absolute; background: rgba(0,0,0,0.5);
-        }
+        .scan-overlay svg { width: 100%; height: 100%; }
         .scan-hint {
             position: absolute; bottom: 80px; left: 0; right: 0;
-            color: rgba(255,255,255,0.8); font-size: 15px;
+            color: rgba(255,255,255,0.85); font-size: 15px;
             text-align: center; z-index: 20; pointer-events: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        /* html5-qrcode 自带的内部扫码框隐藏，只用它做识别区域 */
+        #scanViewport img, #scanViewport__dashboard_section_csr span img,
+        #scanViewport__scan_region img {
+            display: none !important;
+        }
+        #scanViewport__scan_region {
+            background: transparent !important;
+            border: none !important;
         }
 
         /* 提示文字 — 醒目颜色 */
@@ -349,19 +315,20 @@
 
         // ====== 扫码功能 ======
         let html5QrCode = null;
-        // 检测是否在 APK 中运行（有 NativeBridge）
         const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
 
+        // 扫码框尺寸（屏幕短边的 60%）
+        function getScanBoxSize() {
+            return Math.min(window.innerWidth, window.innerHeight) * 0.6;
+        }
+
         async function startScan() {
-            // APK 环境：调用系统原生相机拍照扫码
+            // APK 环境：调用原生扫码
             if (isInApp) {
-                // 注册回调
                 window.onScanResult = function(result) {
                     if (result === 'CANCEL') {
-                        // 用户取消，什么都不做
-                    } else if (result === 'ERROR') {
-                        alert('扫码解析失败，请重试或手动粘贴淘口令');
-                    } else if (result === 'NOT_FOUND') {
+                        // 用户取消
+                    } else if (result === 'ERROR' || result === 'NOT_FOUND') {
                         alert('未识别到二维码，请重新拍照');
                     } else {
                         document.getElementById('productLink').value = result;
@@ -371,57 +338,103 @@
                 return;
             }
 
-            // 浏览器环境：使用 html5-qrcode Web API（全屏相机）
+            // 浏览器环境
             const modal = document.getElementById('scanModal');
             modal.classList.add('active');
 
-            // 绘制扫码框遮罩
+            // 先显示遮罩，避免黑屏等待
             drawScanOverlay();
 
             if (!window.Html5Qrcode) {
-                await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+                try {
+                    await loadScript('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js');
+                } catch (e) {
+                    alert('扫码组件加载失败，请检查网络后重试');
+                    stopScan();
+                    return;
+                }
             }
 
             if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode('scanViewport');
+                html5QrCode = new Html5Qrcode('scanViewport', true);
             }
 
-            const cameraConfig = { facingMode: 'environment' };
+            // 获取相机列表，选择后置相机
+            let cameraId = null;
+            try {
+                const cameras = await Html5Qrcode.getCameras();
+                if (!cameras || cameras.length === 0) {
+                    throw new Error('没有找到可用相机');
+                }
+                // 优先选择后置相机（label 包含 back / 后置 / 背面 / environment）
+                const backCamera = cameras.find(c =>
+                    /back|rear|后置|背面|environment/i.test(c.label)
+                );
+                cameraId = backCamera ? backCamera.id : cameras[0].id;
+            } catch (e) {
+                console.error('获取相机失败:', e);
+                // 获取失败时回退到 facingMode
+            }
 
-            // 全屏扫码：qrbox 设为较大值，居中显示
-            const boxSize = Math.min(window.innerWidth, window.innerHeight) * 0.6;
+            // qrbox 用函数，确保和遮罩一致
+            const qrboxFunction = function(viewfinderWidth, viewfinderHeight) {
+                const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.6;
+                return { width: size, height: size };
+            };
+
             const config = {
                 fps: 10,
-                qrbox: { width: boxSize, height: boxSize },
-                experimentalFeatures: {
-                    useBarCodeDetectorIfSupported: false
-                },
+                qrbox: qrboxFunction,
                 aspectRatio: 1.0,
                 disableFlip: false,
+                videoConstraints: {
+                    facingMode: 'environment',
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
             };
 
             try {
-                await html5QrCode.start(
-                    cameraConfig,
-                    config,
-                    (decodedText) => {
-                        document.getElementById('productLink').value = decodedText;
-                        stopScan();
-                    },
-                    () => {}
-                );
+                if (cameraId) {
+                    await html5QrCode.start(
+                        cameraId,
+                        config,
+                        (decodedText) => {
+                            document.getElementById('productLink').value = decodedText;
+                            stopScan();
+                        },
+                        () => {}
+                    );
+                } else {
+                    await html5QrCode.start(
+                        { facingMode: 'environment' },
+                        config,
+                        (decodedText) => {
+                            document.getElementById('productLink').value = decodedText;
+                            stopScan();
+                        },
+                        () => {}
+                    );
+                }
 
-                // 相机启动后更新遮罩
-                setTimeout(() => {
-                    drawScanOverlay();
-                }, 500);
+                // 相机启动后重新计算遮罩位置
+                drawScanOverlay();
 
+                // 尝试设置对焦
                 setTimeout(() => {
                     tryApplyFocus();
-                }, 500);
+                }, 600);
             } catch (err) {
                 console.error('扫码启动失败:', err);
-                alert('无法打开相机，请检查相机权限。也可以手动粘贴淘口令。');
+                let msg = '无法打开相机，请检查相机权限。也可以手动粘贴淘口令。';
+                if (err && err.name === 'NotAllowedError') {
+                    msg = '相机权限被拒绝。请在浏览器设置中允许访问相机。';
+                } else if (err && err.name === 'NotFoundError') {
+                    msg = '未找到可用相机，请确认设备相机正常。';
+                } else if (err && err.message) {
+                    msg = '无法打开相机：' + err.message;
+                }
+                alert(msg);
                 stopScan();
             }
         }
@@ -467,27 +480,36 @@
             }
         }
 
-        // 绘制全屏扫码框遮罩
+        // 绘制全屏扫码框遮罩（用 SVG，位置精确）
         function drawScanOverlay() {
             const overlay = document.getElementById('scanOverlay');
             if (!overlay) return;
 
             const w = window.innerWidth;
             const h = window.innerHeight;
-            const boxSize = Math.min(w, h) * 0.6;
+            const boxSize = getScanBoxSize();
             const left = (w - boxSize) / 2;
             const top = (h - boxSize) / 2;
-            const right = left + boxSize;
-            const bottom = top + boxSize;
+            const corner = Math.round(boxSize * 0.12);
+            const stroke = 5;
+            const color = '#6a9a7a';
 
             overlay.innerHTML = `
-                <div style="position:absolute;top:0;left:0;width:${w}px;height:${top}px;background:rgba(0,0,0,0.5);"></div>
-                <div style="position:absolute;top:${bottom}px;left:0;width:${w}px;height:${h - bottom}px;background:rgba(0,0,0,0.5);"></div>
-                <div style="position:absolute;top:${top}px;left:0;width:${left}px;height:${boxSize}px;background:rgba(0,0,0,0.5);"></div>
-                <div style="position:absolute;top:${top}px;left:${right}px;width:${w - right}px;height:${boxSize}px;background:rgba(0,0,0,0.5);"></div>
-                <div class="scan-frame" style="left:${left}px;top:${top}px;width:${boxSize}px;height:${boxSize}px;">
-                    <div class="scan-frame-inner"></div>
-                </div>
+                <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">
+                    <!-- 半透明遮罩 -->
+                    <defs>
+                        <mask id="scanMask">
+                            <rect width="${w}" height="${h}" fill="white"/>
+                            <rect x="${left}" y="${top}" width="${boxSize}" height="${boxSize}" rx="16" fill="black"/>
+                        </mask>
+                    </defs>
+                    <rect width="${w}" height="${h}" fill="rgba(0,0,0,0.55)" mask="url(#scanMask)"/>
+                    <!-- 四角装饰 -->
+                    <path d="M${left + stroke/2} ${top + corner} V${top + stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                    <path d="M${left + boxSize - corner} ${top + stroke/2} H${left + boxSize - stroke/2} V${top + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                    <path d="M${left + stroke/2} ${top + boxSize - corner} V${top + boxSize - stroke/2} H${left + corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                    <path d="M${left + boxSize - corner} ${top + boxSize - stroke/2} H${left + boxSize - stroke/2} V${top + boxSize - corner}" fill="none" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>
+                </svg>
             `;
         }
 
