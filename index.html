@@ -329,18 +329,35 @@
             document.getElementById('scanViewport').appendChild(scanVideo);
         })();
 
+        // 选择后置摄像头（兼容华为/鸿蒙浏览器对 facingMode 支持差的问题）
+        async function pickBackCamera() {
+            try {
+                // 先请求一次临时权限，否则 enumerateDevices 中 label 为空
+                const tmpStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                tmpStream.getTracks().forEach(t => t.stop());
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                const backCamera = videoDevices.find(d =>
+                    /back|rear|后置|背面|environment/i.test(d.label)
+                );
+                return backCamera ? backCamera.deviceId : (videoDevices[0] && videoDevices[0].deviceId);
+            } catch (e) {
+                console.error('枚举相机失败:', e);
+                return null;
+            }
+        }
+
         // 启动相机流（仅首次需要请求权限和初始化硬件）
         async function ensureCameraStream() {
             if (scanStream) return scanStream;
 
-            const constraints = {
-                video: {
-                    facingMode: 'environment',
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
-                },
-                audio: false
-            };
+            const backDeviceId = await pickBackCamera();
+            const videoConstraint = backDeviceId
+                ? { deviceId: { exact: backDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                : { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } };
+
+            const constraints = { video: videoConstraint, audio: false };
 
             scanStream = await navigator.mediaDevices.getUserMedia(constraints);
             scanVideo.srcObject = scanStream;
