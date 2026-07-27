@@ -330,12 +330,7 @@
                         fps: 10,
                         qrbox: { width: 220, height: 220 },
                         aspectRatio: 1.0,
-                        disableFlip: false,
-                        videoConstraints: {
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 },
-                            facingMode: 'environment'
-                        }
+                        disableFlip: false
                     },
                     (decodedText) => {
                         document.getElementById('productLink').value = decodedText;
