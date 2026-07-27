@@ -296,11 +296,12 @@
             document.getElementById('customText').value = '';
         }
 
-        // ====== 扫码功能（html5-qrcode，浮窗弹窗） ======
+        // ====== 扫码功能（APK用原生拍照，浏览器用html5-qrcode浮窗） ======
         const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
         let html5QrCode = null;
 
         async function startScan() {
+            // APK 环境：调用系统相机拍照扫码（静态，不卡顿）
             if (isInApp) {
                 window.onScanResult = function(result) {
                     if (result === 'CANCEL') return;
@@ -316,6 +317,7 @@
                 return;
             }
 
+            // 浏览器环境：html5-qrcode 浮窗弹窗扫码
             const modal = document.getElementById('scanModal');
             modal.classList.add('active');
 
