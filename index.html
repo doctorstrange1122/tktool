@@ -481,8 +481,15 @@
             return null;
         }
 
-        // 复制文本到剪贴板（兼容iOS Safari）
+        // 复制文本到剪贴板（兼容iOS Safari + Android WebView）
         function copyToClipboard(text) {
+            // APK 环境：使用原生剪贴板（不受 file:// 协议限制）
+            if (isInApp && NativeBridge.copyToClipboard) {
+                NativeBridge.copyToClipboard(text);
+                return;
+            }
+
+            // 浏览器环境：优先 Clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).catch(() => {
                     _copyFallback(text);

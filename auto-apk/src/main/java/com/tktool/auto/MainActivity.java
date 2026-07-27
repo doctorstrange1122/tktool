@@ -2,6 +2,9 @@ package com.tktool.auto;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
@@ -167,5 +170,23 @@ public class MainActivity extends Activity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    @JavascriptInterface
+    public void copyToClipboard(final String text) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    ClipData clip = ClipData.newPlainText("tktool", text);
+                    clipboard.setPrimaryClip(clip);
+                    // 回调网页提示复制成功
+                    webView.evaluateJavascript("if(typeof onCopySuccess==='function')onCopySuccess();", null);
+                } catch (Exception e) {
+                    webView.evaluateJavascript("if(typeof onCopyError==='function')onCopyError('" + e.getMessage() + "');", null);
+                }
+            }
+        });
     }
 }
