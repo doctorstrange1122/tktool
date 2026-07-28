@@ -371,25 +371,22 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            // 尝试多种方式读取剪贴板内容
+            // 尝试多种方式读取最近一条剪贴板内容
             String content = null;
             ClipData.Item item = clip.getItemAt(0);
 
-            // 1. 纯文本
             CharSequence text = item.getText();
             if (text != null && !text.toString().trim().isEmpty()) {
                 content = text.toString().trim();
             }
 
-            // 2. HTML 文本
             if (content == null) {
                 String html = item.getHtmlText();
                 if (html != null && !html.trim().isEmpty()) {
-                    content = android.text.Html.fromHtml(html).toString().trim();
+                    content = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim();
                 }
             }
 
-            // 3. URI
             if (content == null) {
                 Uri uri = item.getUri();
                 if (uri != null) {
@@ -397,43 +394,26 @@ public class MainActivity extends Activity {
                 }
             }
 
-            // 4. 遍历所有 item 的 description
             if (content == null) {
-                ClipData clip2 = clipboard.getPrimaryClip();
-                if (clip2 != null) {
-                    for (int i = 0; i < clip2.getItemCount(); i++) {
-                        ClipData.Item it = clip2.getItemAt(i);
-                        CharSequence t = it.getText();
-                        if (t != null && !t.toString().trim().isEmpty()) {
-                            content = t.toString().trim();
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // 5. 直接用 clip.toString() 兜底
-            if (content == null) {
-                String raw = clip.toString();
-                if (raw != null && !raw.trim().isEmpty() && !raw.startsWith("ClipData")) {
-                    content = raw.trim();
-                }
+                content = item.coerceToText(MainActivity.this).toString().trim();
             }
 
             if (content == null || content.isEmpty()) {
-                Toast.makeText(this, "剪贴板为空或格式不支持", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
                 return;
             }
 
+            // 只填入输入框，不自动生成
             final String escaped = content
                     .replace("\\", "\\\\")
                     .replace("'", "\\'")
                     .replace("\n", "\\n")
                     .replace("\r", "");
-            webView.evaluateJavascript("setInputAndGenerate('" + escaped + "');", null);
-            Toast.makeText(this, "已读取剪贴板内容", Toast.LENGTH_SHORT).show();
+            webView.evaluateJavascript(
+                "document.getElementById('productLink').value = '" + escaped + "';", null);
+            Toast.makeText(this, "已粘贴到输入框", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "读取剪贴板失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "读取失败", Toast.LENGTH_SHORT).show();
         }
     }
 
