@@ -323,21 +323,42 @@ public class MainActivity extends Activity {
 
     private void handleClipboardFromFloating(Intent intent) {
         if (intent == null) return;
-        String clipboardContent = intent.getStringExtra("clipboard_content");
-        if (clipboardContent != null && !clipboardContent.isEmpty() && webView != null) {
-            final String escaped = clipboardContent
-                    .replace("\\", "\\\\")
-                    .replace("'", "\\'")
-                    .replace("\n", "\\n")
-                    .replace("\r", "");
-            webView.postDelayed(new Runnable() {
-                @Override
-                public void run() {
+        boolean readClipboard = intent.getBooleanExtra("read_clipboard", false);
+        if (!readClipboard) return;
+        // 前台 Activity 可以读剪贴板，延迟等 WebView 加载完成
+        webView.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (clipboard == null || !clipboard.hasPrimaryClip()) {
+                        Toast.makeText(MainActivity.this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    ClipData clip = clipboard.getPrimaryClip();
+                    if (clip == null || clip.getItemCount() == 0) {
+                        Toast.makeText(MainActivity.this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    CharSequence text = clip.getItemAt(0).getText();
+                    if (text == null || text.toString().trim().isEmpty()) {
+                        Toast.makeText(MainActivity.this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String content = text.toString().trim();
+                    final String escaped = content
+                            .replace("\\", "\\\\")
+                            .replace("'", "\\'")
+                            .replace("\n", "\\n")
+                            .replace("\r", "");
                     webView.evaluateJavascript(
-                        "setInputAndGenerate('" + escaped + "');", null);
+                            "setInputAndGenerate('" + escaped + "');", null);
+                    Toast.makeText(MainActivity.this, "已读取剪贴板内容", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "读取剪贴板失败", Toast.LENGTH_SHORT).show();
                 }
-            }, 500);
-        }
+            }
+        }, 2500);
     }
 
     @Override

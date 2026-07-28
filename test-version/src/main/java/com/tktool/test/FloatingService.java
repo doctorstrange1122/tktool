@@ -252,30 +252,14 @@ public class FloatingService extends Service {
 
     private void readClipboardAndOpen() {
         try {
-            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            String content = "";
-            if (clipboard != null && clipboard.hasPrimaryClip()) {
-                ClipData clip = clipboard.getPrimaryClip();
-                if (clip != null && clip.getItemCount() > 0) {
-                    CharSequence text = clip.getItemAt(0).getText();
-                    if (text != null) {
-                        content = text.toString().trim();
-                    }
-                }
-            }
-
+            // Android 10+ 后台 Service 无法读剪贴板，改为通知 Activity 自己去读
             Intent intent = new Intent(this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            intent.putExtra("clipboard_content", content);
+            intent.putExtra("read_clipboard", true);
             startActivity(intent);
-
-            if (!content.isEmpty()) {
-                Toast.makeText(this, "已读取剪贴板内容", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
-            }
+            Toast.makeText(this, "正在打开工具并读取剪贴板...", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "读取失败", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "启动失败", Toast.LENGTH_SHORT).show();
         }
     }
 
