@@ -268,11 +268,6 @@
     </div>
 
     <div class="footer">秒杀商品二维码生成工具</div>
-
-    <!-- 悬浮窗按钮（测试版） -->
-    <div style="text-align:center; padding:10px 0 20px;">
-        <button id="floatingBtn" onclick="toggleFloating()" style="background:#6a9a7a;color:#fff;border:none;padding:12px 28px;border-radius:24px;font-size:15px;cursor:pointer;">🔘 打开悬浮窗</button>
-    </div>
 </div>
 
     <!-- 扫码弹窗 -->
@@ -306,33 +301,6 @@
 
         // ====== 测试版悬浮窗控制 ======
         function toggleFloating() {
-            if (isInApp && NativeBridge.toggleFloatingWindow) {
-                NativeBridge.toggleFloatingWindow();
-                // 切换按钮文字
-                setTimeout(function() {
-                    updateFloatingBtnState();
-                }, 300);
-            } else {
-                alert('悬浮窗功能仅在测试版APP中可用');
-            }
-        }
-
-        function updateFloatingBtnState() {
-            const btn = document.getElementById('floatingBtn');
-            if (isInApp && NativeBridge.isFloatingServiceActive) {
-                if (NativeBridge.isFloatingServiceActive()) {
-                    btn.textContent = '🔘 关闭悬浮窗';
-                    btn.style.background = '#c0392b';
-                } else {
-                    btn.textContent = '🔘 打开悬浮窗';
-                    btn.style.background = '#6a9a7a';
-                }
-            }
-        }
-
-        // 初始化按钮状态
-        setTimeout(updateFloatingBtnState, 1000);
-
         async function startScan() {
             // APK 环境：调用系统相机拍照扫码（静态，不卡顿）
             if (isInApp) {
