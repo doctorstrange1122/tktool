@@ -47,7 +47,6 @@ public class MainActivity extends Activity {
         // 处理分享传入的文本 或 悬浮窗传入的剪贴板内容
         handleShareIntent(getIntent());
         handleClipboardFromFloating(getIntent());
-
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -217,7 +216,22 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void toggleFloatingWindow() {
+        public String toggleFloatingWindow() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!android.provider.Settings.canDrawOverlays(MainActivity.this)) {
+                    // 没有悬浮窗权限，引导用户开启
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:" + getPackageName()));
+                            startActivityForResult(intent, 2002);
+                            Toast.makeText(MainActivity.this, "请先开启悬浮窗权限", Toast.LENGTH_LONG).show();
+                        }
+                    });
+                    return "need_permission";
+                }
+            }
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
@@ -228,6 +242,7 @@ public class MainActivity extends Activity {
                     }
                 }
             });
+            return "ok";
         }
 
         @JavascriptInterface
