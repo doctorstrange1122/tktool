@@ -268,6 +268,11 @@
     </div>
 
     <div class="footer">秒杀商品二维码生成工具</div>
+
+    <!-- 悬浮窗按钮（仅 APK 环境可用） -->
+    <div id="floatingBtnArea" style="text-align:center; padding:10px 0 20px;">
+        <button id="floatingBtn" onclick="toggleFloating()" style="background:#6a9a7a;color:#fff;border:none;padding:12px 28px;border-radius:24px;font-size:15px;cursor:pointer;">🔘 打开悬浮窗</button>
+    </div>
 </div>
 
     <!-- 扫码弹窗 -->
@@ -298,6 +303,30 @@
         // ====== 扫码功能（APK用原生拍照，浏览器用html5-qrcode浮窗） ======
         const isInApp = typeof NativeBridge !== 'undefined' && NativeBridge.startNativeScan;
         let html5QrCode = null;
+
+        // ====== 悬浮窗控制（仅 APK 环境） ======
+        function toggleFloating() {
+            if (isInApp && NativeBridge.toggleFloatingWindow) {
+                NativeBridge.toggleFloatingWindow();
+                setTimeout(updateFloatingBtnState, 300);
+            } else {
+                alert('悬浮窗功能仅在测试版APP中可用');
+            }
+        }
+
+        function updateFloatingBtnState() {
+            const btn = document.getElementById('floatingBtn');
+            if (isInApp && NativeBridge.isFloatingServiceActive) {
+                if (NativeBridge.isFloatingServiceActive()) {
+                    btn.textContent = '🔘 关闭悬浮窗';
+                    btn.style.background = '#c0392b';
+                } else {
+                    btn.textContent = '🔘 打开悬浮窗';
+                    btn.style.background = '#6a9a7a';
+                }
+            }
+        }
+        setTimeout(updateFloatingBtnState, 1500);
 
         // ====== 测试版悬浮窗控制 ======
         function toggleFloating() {
