@@ -743,6 +743,22 @@
                 mergedImg.alt = '带文字的二维码';
                 mergedImg.style.maxWidth = '200px';
                 mergedImg.style.borderRadius = '8px';
+                mergedImg.style.cursor = 'pointer';
+                mergedImg.style.webkitTouchCallout = 'none';
+
+                // APK 环境：长按保存到图库
+                mergedImg.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+                let longPressTimer;
+                mergedImg.addEventListener('touchstart', function(e) {
+                    longPressTimer = setTimeout(function() {
+                        if (isInApp && NativeBridge.saveImage) {
+                            NativeBridge.saveImage(currentQRCodeWithTextCanvas.toDataURL('image/png'));
+                        }
+                    }, 600);
+                });
+                mergedImg.addEventListener('touchend', function() { clearTimeout(longPressTimer); });
+                mergedImg.addEventListener('touchmove', function() { clearTimeout(longPressTimer); });
+
                 container.appendChild(mergedImg);
 
                 actionButtons.innerHTML = `

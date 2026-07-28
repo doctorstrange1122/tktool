@@ -4,13 +4,19 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -19,6 +25,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -126,16 +136,47 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void copyToClipboard(final String text) {
+        public void saveImage(final String base64Data) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
                     try {
-                        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                        ClipData clip = ClipData.newPlainText("tktool", text);
-                        clipboard.setPrimaryClip(clip);
+                        // 去掉 data:image/png;base64, 前缀
+                        String pureBase64 = base64Data;
+                        if (base64Data.contains(",")) {
+                            pureBase64 = base64Data.substring(base64Data.indexOf(",") + 1);
+                        }
+                        byte[] decodedBytes = Base64.decode(pureBase64, Base64.DEFAULT);
+                        Bitmap bitmap = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+
+                        String filename = "qrcode_" + System.currentTimeMillis() + ".png";
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            ContentValues values = new ContentValues();
+                            values.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
+                            values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES);
+                            Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                            if (uri != null) {
+                                OutputStream os = getContentResolver().openOutputStream(uri);
+                                bitmap.compress(Bitmap.CompressFormat.PNG, 100, os);
+                                os.close();
+                                Toast.makeText(MainActivity.this, "已保存到图库", Toast.LENGTH_SHORT).show();
+                            }
+                        } else {
+                            File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+                            File file = new File(dir, filename);
+                            FileOutputStream fos = new FileOutputStream(file);
+                            bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
+                            fos.close();
+                            // 通知相册刷新
+                            Intent mediaScan = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                            mediaScan.setData(Uri.fromFile(file));
+                            sendBroadcast(mediaScan);
+                            Toast.makeText(MainActivity.this, "已保存到图库", Toast.LENGTH_SHORT).show();
+                        }
                     } catch (Exception e) {
-                        // 静默失败
+                        Toast.makeText(MainActivity.this, "保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 }
             });
