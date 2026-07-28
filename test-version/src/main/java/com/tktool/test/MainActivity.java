@@ -325,11 +325,17 @@ public class MainActivity extends Activity {
         handleShareIntent(intent);
         if (intent.getBooleanExtra("read_clipboard", false)) {
             pendingClipboardRead = true;
-            // 如果页面已加载完成，直接读取
-            if (webView != null && webView.getUrl() != null && webView.getUrl().contains("doctorstrange1122")) {
-                pendingClipboardRead = false;
-                readClipboardAndFill();
-            }
+            // 延迟读取，确保系统剪贴板同步完成
+            webView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (pendingClipboardRead && webView.getUrl() != null
+                            && webView.getUrl().contains("doctorstrange1122")) {
+                        pendingClipboardRead = false;
+                        readClipboardAndFill();
+                    }
+                }
+            }, 800);
         }
     }
 
