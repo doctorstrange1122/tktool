@@ -746,17 +746,23 @@
                 mergedImg.style.cursor = 'pointer';
                 mergedImg.style.webkitTouchCallout = 'none';
 
-                // 长按保存：APK 用原生保存到图库，浏览器用系统默认行为
-                mergedImg.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+                // 长按保存：APK 用原生保存到图库，浏览器弹出系统菜单（含"保存图片"选项）
+                mergedImg.addEventListener('contextmenu', function(e) {
+                    // 浏览器环境：不阻止，让系统长按菜单弹出（含"保存图片"）
+                    if (isInApp) {
+                        e.preventDefault(); // APK 环境阻止系统菜单，用自定义弹窗
+                    }
+                });
                 let longPressTimer;
                 mergedImg.addEventListener('touchstart', function(e) {
                     longPressTimer = setTimeout(function() {
                         if (isInApp && NativeBridge.saveImage) {
+                            // APK 环境：长按弹出确认框，确认后原生保存到图库
                             if (confirm('是否保存二维码图片到图库？')) {
                                 NativeBridge.saveImage(currentQRCodeWithTextCanvas.toDataURL('image/png'));
                             }
                         }
-                        // 浏览器环境：不做处理，交给系统默认长按菜单（保存图片）
+                        // 浏览器环境：由 contextmenu 事件触发系统菜单（含"保存图片"）
                     }, 600);
                 });
                 mergedImg.addEventListener('touchend', function() { clearTimeout(longPressTimer); });
