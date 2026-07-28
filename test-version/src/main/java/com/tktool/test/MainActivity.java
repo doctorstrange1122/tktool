@@ -30,6 +30,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 
+import android.text.Html;
+
 public class MainActivity extends Activity {
     private WebView webView;
     private PermissionRequest pendingPermissionRequest;
@@ -368,12 +370,61 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
                 return;
             }
-            CharSequence text = clip.getItemAt(0).getText();
-            if (text == null || text.toString().trim().isEmpty()) {
-                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+
+            // 尝试多种方式读取剪贴板内容
+            String content = null;
+            ClipData.Item item = clip.getItemAt(0);
+
+            // 1. 纯文本
+            CharSequence text = item.getText();
+            if (text != null && !text.toString().trim().isEmpty()) {
+                content = text.toString().trim();
+            }
+
+            // 2. HTML 文本
+            if (content == null) {
+                String html = item.getHtmlText();
+                if (html != null && !html.trim().isEmpty()) {
+                    content = android.text.Html.fromHtml(html).toString().trim();
+                }
+            }
+
+            // 3. URI
+            if (content == null) {
+                Uri uri = item.getUri();
+                if (uri != null) {
+                    content = uri.toString();
+                }
+            }
+
+            // 4. 遍历所有 item 的 description
+            if (content == null) {
+                ClipData clip2 = clipboard.getPrimaryClip();
+                if (clip2 != null) {
+                    for (int i = 0; i < clip2.getItemCount(); i++) {
+                        ClipData.Item it = clip2.getItemAt(i);
+                        CharSequence t = it.getText();
+                        if (t != null && !t.toString().trim().isEmpty()) {
+                            content = t.toString().trim();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 5. 直接用 clip.toString() 兜底
+            if (content == null) {
+                String raw = clip.toString();
+                if (raw != null && !raw.trim().isEmpty() && !raw.startsWith("ClipData")) {
+                    content = raw.trim();
+                }
+            }
+
+            if (content == null || content.isEmpty()) {
+                Toast.makeText(this, "剪贴板为空或格式不支持", Toast.LENGTH_SHORT).show();
                 return;
             }
-            String content = text.toString().trim();
+
             final String escaped = content
                     .replace("\\", "\\\\")
                     .replace("'", "\\'")
@@ -382,7 +433,7 @@ public class MainActivity extends Activity {
             webView.evaluateJavascript("setInputAndGenerate('" + escaped + "');", null);
             Toast.makeText(this, "已读取剪贴板内容", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Toast.makeText(this, "读取剪贴板失败", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "读取剪贴板失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
