@@ -35,6 +35,8 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingPermissionRequest;
     private static final int REQUEST_SCAN = 1003;
 
+    private boolean pendingClipboardRead = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,8 +48,9 @@ public class MainActivity extends Activity {
 
         // 处理分享传入的文本 或 悬浮窗传入的剪贴板内容
         handleShareIntent(getIntent());
-        handleClipboardFromFloating(getIntent());
-        WebSettings settings = webView.getSettings();
+        if (getIntent().getBooleanExtra("read_clipboard", false)) {
+            pendingClipboardRead = true;
+        }        WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
@@ -61,6 +64,16 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new JSBridge(), "NativeBridge");
 
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                // 页面加载完成后，处理待执行的剪贴板读取
+                if (pendingClipboardRead && url != null && url.contains("doctorstrange1122")) {
+                    pendingClipboardRead = false;
+                    readClipboardAndFill();
+                }
+            }
+
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
                 view.loadData("<html><body><h2>加载失败</h2><p>" + description + "</p></body></html>", "text/html", "UTF-8");
@@ -308,7 +321,14 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleShareIntent(intent);
-        handleClipboardFromFloating(intent);
+        if (intent.getBooleanExtra("read_clipboard", false)) {
+            pendingClipboardRead = true;
+            // 如果页面已加载完成，直接读取
+            if (webView != null && webView.getUrl() != null && webView.getUrl().contains("doctorstrange1122")) {
+                pendingClipboardRead = false;
+                readClipboardAndFill();
+            }
+        }
     }
 
     private void handleShareIntent(Intent intent) {
@@ -336,44 +356,34 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void handleClipboardFromFloating(Intent intent) {
-        if (intent == null) return;
-        boolean readClipboard = intent.getBooleanExtra("read_clipboard", false);
-        if (!readClipboard) return;
-        // 前台 Activity 可以读剪贴板，延迟等 WebView 加载完成
-        webView.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    if (clipboard == null || !clipboard.hasPrimaryClip()) {
-                        Toast.makeText(MainActivity.this, "剪贴板为空", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    ClipData clip = clipboard.getPrimaryClip();
-                    if (clip == null || clip.getItemCount() == 0) {
-                        Toast.makeText(MainActivity.this, "剪贴板为空", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    CharSequence text = clip.getItemAt(0).getText();
-                    if (text == null || text.toString().trim().isEmpty()) {
-                        Toast.makeText(MainActivity.this, "剪贴板为空", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    String content = text.toString().trim();
-                    final String escaped = content
-                            .replace("\\", "\\\\")
-                            .replace("'", "\\'")
-                            .replace("\n", "\\n")
-                            .replace("\r", "");
-                    webView.evaluateJavascript(
-                            "setInputAndGenerate('" + escaped + "');", null);
-                    Toast.makeText(MainActivity.this, "已读取剪贴板内容", Toast.LENGTH_SHORT).show();
-                } catch (Exception e) {
-                    Toast.makeText(MainActivity.this, "读取剪贴板失败", Toast.LENGTH_SHORT).show();
-                }
+    private void readClipboardAndFill() {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null || !clipboard.hasPrimaryClip()) {
+                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+                return;
             }
-        }, 2500);
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) {
+                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            CharSequence text = clip.getItemAt(0).getText();
+            if (text == null || text.toString().trim().isEmpty()) {
+                Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            String content = text.toString().trim();
+            final String escaped = content
+                    .replace("\\", "\\\\")
+                    .replace("'", "\\'")
+                    .replace("\n", "\\n")
+                    .replace("\r", "");
+            webView.evaluateJavascript("setInputAndGenerate('" + escaped + "');", null);
+            Toast.makeText(this, "已读取剪贴板内容", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "读取剪贴板失败", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
