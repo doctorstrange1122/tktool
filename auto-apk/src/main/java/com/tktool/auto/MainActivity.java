@@ -44,6 +44,9 @@ public class MainActivity extends Activity {
         webView = new WebView(this);
         setContentView(webView);
 
+        // 处理分享传入的文本
+        handleShareIntent(getIntent());
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -216,6 +219,38 @@ public class MainActivity extends Activity {
                     pendingPermissionRequest.deny();
                     pendingPermissionRequest = null;
                 }
+            }
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleShareIntent(intent);
+    }
+
+    private void handleShareIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        String type = intent.getType();
+
+        if (Intent.ACTION_SEND.equals(action) && "text/plain".equals(type)) {
+            String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
+            if (sharedText != null && !sharedText.isEmpty() && webView != null) {
+                // 将分享的文本填入输入框并自动生成
+                final String escaped = sharedText
+                        .replace("\\", "\\\\")
+                        .replace("'", "\\'")
+                        .replace("\n", "\\n")
+                        .replace("\r", "");
+                webView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        webView.evaluateJavascript(
+                            "setInputAndGenerate('" + escaped + "');", null);
+                    }
+                }, 500);
             }
         }
     }

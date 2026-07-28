@@ -312,6 +312,13 @@
                         document.getElementById('productLink').value = result;
                     }
                 };
+
+                // APK 接收外部分享的文本（如从淘宝分享直达）
+                window.setInputAndGenerate = function(text) {
+                    document.getElementById('productLink').value = text;
+                    // 自动触发生成（默认3万肥料）
+                    generateQRCodes(30000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68479&itemIds=', '3万');
+                };
                 NativeBridge.startNativeScan();
                 return;
             }
