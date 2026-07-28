@@ -14,10 +14,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.view.Gravity;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -168,33 +166,31 @@ public class FloatingService extends Service {
     private View createActionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setBackgroundColor(0xF0222222);
-        int pad = dpToPx(8);
+        // 圆角矩形背景
+        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        bg.setCornerRadius(dpToPx(12));
+        bg.setColor(0xF02C2C2C);
+        bg.setStroke(dpToPx(1), 0x33FFFFFF);
+        panel.setBackground(bg);
+        panel.setElevation(dpToPx(8));
+        int pad = dpToPx(4);
         panel.setPadding(pad, pad, pad, pad);
 
-        // 读取剪贴板按钮
-        TextView readBtn = new TextView(this);
-        readBtn.setText("📋 读取剪贴板");
-        readBtn.setTextSize(14);
-        readBtn.setTextColor(0xFFFFFFFF);
-        readBtn.setPadding(dpToPx(16), dpToPx(10), dpToPx(16), dpToPx(10));
-        readBtn.setBackgroundColor(0x00000000);
-        readBtn.setOnClickListener(new View.OnClickListener() {
+        // 读取剪贴板
+        panel.addView(createPanelItem("读取剪贴板", 0xFFFFFFFF, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 readClipboardAndOpen();
                 hideActionPanel();
             }
-        });
+        }));
 
-        // 打开 APP 按钮
-        TextView openBtn = new TextView(this);
-        openBtn.setText("📱 打开工具");
-        openBtn.setTextSize(14);
-        openBtn.setTextColor(0xFFFFFFFF);
-        openBtn.setPadding(dpToPx(16), dpToPx(10), dpToPx(16), dpToPx(10));
-        openBtn.setBackgroundColor(0x00000000);
-        openBtn.setOnClickListener(new View.OnClickListener() {
+        // 分隔线
+        panel.addView(createDivider());
+
+        // 打开工具
+        panel.addView(createPanelItem("打开工具", 0xFFFFFFFF, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, MainActivity.class);
@@ -202,27 +198,44 @@ public class FloatingService extends Service {
                 startActivity(intent);
                 hideActionPanel();
             }
-        });
+        }));
+
+        // 分隔线
+        panel.addView(createDivider());
 
         // 关闭悬浮窗
-        TextView closeBtn = new TextView(this);
-        closeBtn.setText("✕ 关闭悬浮窗");
-        closeBtn.setTextSize(14);
-        closeBtn.setTextColor(0xFFFF8888);
-        closeBtn.setPadding(dpToPx(16), dpToPx(10), dpToPx(16), dpToPx(10));
-        closeBtn.setBackgroundColor(0x00000000);
-        closeBtn.setOnClickListener(new View.OnClickListener() {
+        panel.addView(createPanelItem("关闭悬浮窗", 0xFFFF6666, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 hideActionPanel();
                 stopSelf();
             }
-        });
+        }));
 
-        panel.addView(readBtn);
-        panel.addView(openBtn);
-        panel.addView(closeBtn);
         return panel;
+    }
+
+    private TextView createPanelItem(String text, int color, View.OnClickListener listener) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(14);
+        tv.setTextColor(color);
+        tv.setGravity(Gravity.CENTER_VERTICAL);
+        tv.setPadding(dpToPx(20), dpToPx(14), dpToPx(20), dpToPx(14));
+        tv.setMinWidth(dpToPx(160));
+        tv.setBackgroundColor(0x00000000);
+        tv.setOnClickListener(listener);
+        return tv;
+    }
+
+    private View createDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(0x22FFFFFF);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1));
+        lp.setMargins(dpToPx(16), 0, dpToPx(16), 0);
+        divider.setLayoutParams(lp);
+        return divider;
     }
 
     private void showActionPanel() {
