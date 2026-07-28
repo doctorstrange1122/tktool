@@ -222,7 +222,6 @@ public class FloatingService extends Service {
         tv.setTextColor(color);
         tv.setGravity(Gravity.CENTER_VERTICAL);
         tv.setPadding(dpToPx(20), dpToPx(14), dpToPx(20), dpToPx(14));
-        tv.setMinWidth(dpToPx(160));
         tv.setBackgroundColor(0x00000000);
         tv.setOnClickListener(listener);
         return tv;

@@ -269,7 +269,7 @@
 
     <div class="footer">秒杀商品二维码生成工具</div>
 
-    <!-- 悬浮窗按钮（仅测试版 APK 可用） -->
+    <!-- 悬浮窗按钮（仅悬浮窗版 APK 可用） -->
     <div style="text-align:center; padding:10px 0 20px;">
         <button id="floatingBtn" onclick="toggleFloating()" style="background:#6a9a7a;color:#fff;border:none;padding:12px 28px;border-radius:24px;font-size:15px;cursor:pointer;">🔘 打开悬浮窗</button>
     </div>
@@ -310,7 +310,7 @@
                 NativeBridge.toggleFloatingWindow();
                 setTimeout(updateFloatingBtnState, 500);
             } else {
-                alert('悬浮窗功能仅在测试版APP中可用');
+                alert('悬浮窗功能仅在悬浮窗版APP中可用');
             }
         }
 
