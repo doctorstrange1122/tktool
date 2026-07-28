@@ -135,7 +135,7 @@ public class FloatingService extends Service {
         actionPanel = createActionPanel();
 
         panelParams = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                dpToPx(180),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -166,6 +166,10 @@ public class FloatingService extends Service {
     private View createActionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+
         // 圆角矩形背景
         android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
         bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
@@ -221,9 +225,12 @@ public class FloatingService extends Service {
         tv.setTextSize(14);
         tv.setTextColor(color);
         tv.setGravity(Gravity.CENTER_VERTICAL);
-        tv.setPadding(dpToPx(20), dpToPx(14), dpToPx(20), dpToPx(14));
+        tv.setPadding(dpToPx(20), dpToPx(12), dpToPx(20), dpToPx(12));
         tv.setBackgroundColor(0x00000000);
         tv.setOnClickListener(listener);
+        tv.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
         return tv;
     }
 
