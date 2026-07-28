@@ -1,0 +1,120 @@
+#!/bin/bash
+# ============================================
+# 过肥（测试版）APK 构建脚本
+# 包名: com.tktool.test，独立签名，与正式版共存
+# ============================================
+set -e
+
+ANDROID_SDK="${ANDROID_SDK:-/opt/android-sdk}"
+BUILD_TOOLS="${BUILD_TOOLS:-$ANDROID_SDK/build-tools/29.0.3}"
+ANDROID_JAR="${ANDROID_JAR:-$ANDROID_SDK/platforms/android-29/android.jar}"
+ZXING_VERSION="3.5.1"
+ZXING_URL="https://maven.aliyun.com/repository/public/com/google/zxing/core/${ZXING_VERSION}/core-${ZXING_VERSION}.jar"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SRC="$SCRIPT_DIR/src/main"
+OUT_DIR="$SCRIPT_DIR/build"
+KEYSTORE="$OUT_DIR/test.keystore"
+KEYSTORE_PASS="test123"
+KEY_ALIAS="test"
+KEY_PASS="test123"
+
+echo "========================================"
+echo "  过肥（测试版）APK 构建"
+echo "  包名: com.tktool.test"
+echo "========================================"
+
+# 1. 准备构建目录
+rm -rf "$OUT_DIR"
+mkdir -p "$OUT_DIR/java_classes" "$OUT_DIR/zxing_classes"
+
+# 2. 编译资源文件
+echo "[1/8] 编译资源文件..."
+$BUILD_TOOLS/aapt2 compile -o "$OUT_DIR/compiled_res.zip" \
+    --dir "$SRC/res" 2>&1
+mkdir -p "$OUT_DIR/compiled_res"
+cd "$OUT_DIR/compiled_res" && unzip -o ../compiled_res.zip > /dev/null && cd "$SCRIPT_DIR"
+echo "       资源文件: $(ls "$OUT_DIR/compiled_res"/*.flat 2>/dev/null | wc -l) 个"
+
+# 3. 下载 ZXing
+echo "[2/8] 下载 ZXing core..."
+ZXING_JAR="$OUT_DIR/zxing-core.jar"
+if [ ! -f "$ZXING_JAR" ]; then
+    curl -sL "$ZXING_URL" -o "$ZXING_JAR"
+fi
+echo "       ZXing jar: $(ls -la "$ZXING_JAR" | awk '{print $5}') bytes"
+
+# 4. 解压 ZXing
+echo "[3/8] 解压 ZXing classes..."
+cd "$OUT_DIR/zxing_classes"
+jar xf "$ZXING_JAR"
+rm -rf META-INF
+cd "$SCRIPT_DIR"
+echo "       ZXing classes: $(find "$OUT_DIR/zxing_classes" -name '*.class' | wc -l)"
+
+# 5. 编译 Java
+echo "[4/8] 编译 Java 源码..."
+javac -source 1.8 -target 1.8 \
+    -bootclasspath /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar \
+    -cp "$ANDROID_JAR:$ZXING_JAR" \
+    -d "$OUT_DIR/java_classes" \
+    "$SRC"/java/com/tktool/test/*.java
+echo "       编译完成"
+
+# 6. D8 转换 dex
+echo "[5/8] D8 转换 dex..."
+$BUILD_TOOLS/d8 --lib "$ANDROID_JAR" --output "$OUT_DIR" \
+    $(find "$OUT_DIR/java_classes" -name "*.class") \
+    $(find "$OUT_DIR/zxing_classes" -name "*.class")
+echo "       dex: $(ls -la "$OUT_DIR/classes.dex" | awk '{print $5}') bytes"
+
+# 7. aapt2 链接资源
+echo "[6/8] aapt2 链接资源..."
+FLAT_FILES=$(ls "$OUT_DIR/compiled_res"/*.flat 2>/dev/null)
+if [ -n "$FLAT_FILES" ]; then
+    $BUILD_TOOLS/aapt2 link -o "$OUT_DIR/base.apk" \
+        -I "$ANDROID_JAR" \
+        --manifest "$SRC/AndroidManifest.xml" \
+        -A "$SRC/assets" \
+        --auto-add-overlay \
+        $FLAT_FILES
+else
+    $BUILD_TOOLS/aapt2 link -o "$OUT_DIR/base.apk" \
+        -I "$ANDROID_JAR" \
+        --manifest "$SRC/AndroidManifest.xml" \
+        -A "$SRC/assets" \
+        --auto-add-overlay
+fi
+
+# 8. 打包签名
+echo "[7/8] 打包签名..."
+cd "$OUT_DIR"
+cp base.apk unsigned.apk
+$BUILD_TOOLS/aapt add unsigned.apk classes.dex
+$BUILD_TOOLS/zipalign -f -p 4 unsigned.apk aligned.apk
+
+if [ ! -f "$KEYSTORE" ]; then
+    keytool -genkey -v \
+        -keystore "$KEYSTORE" \
+        -alias "$KEY_ALIAS" \
+        -keyalg RSA -keysize 2048 -validity 10000 \
+        -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
+        -dname "CN=Test, OU=Test, O=TKTool, L=Beijing, ST=Beijing, C=CN"
+fi
+
+$BUILD_TOOLS/apksigner sign \
+    --ks "$KEYSTORE" \
+    --ks-pass pass:"$KEYSTORE_PASS" \
+    --ks-key-alias "$KEY_ALIAS" \
+    --key-pass pass:"$KEY_PASS" \
+    --out tktool_test.apk \
+    aligned.apk
+
+cd "$SCRIPT_DIR"
+
+echo "[8/8] 构建完成!"
+echo ""
+echo "========================================"
+echo "  APK: $OUT_DIR/tktool_test.apk"
+echo "  大小: $(ls -la "$OUT_DIR/tktool_test.apk" | awk '{print $5}') bytes"
+echo "========================================"
