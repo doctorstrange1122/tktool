@@ -184,6 +184,19 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void copyToClipboard(final String text) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                    ClipData clip = ClipData.newPlainText("tktool", text);
+                    clipboard.setPrimaryClip(clip);
+                    Toast.makeText(MainActivity.this, "已复制到剪贴板", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     @Override
