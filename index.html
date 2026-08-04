@@ -250,7 +250,7 @@
             <button onclick="generateQRCodes(30000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68479&itemIds=', '3万')">3万肥料（每日一次）</button>
             <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68422&itemIds=', '4万①')">4万肥料①（每日一次）</button>
             <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=74994&itemIds=', '4万②')">4万肥料②（每日一次）</button>
-            <button onclick="generateQRCodes(50000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7310&deliveryId=69029&itemIds=', '5万')">5万肥料（每日一次）</button>
+            <button onclick="generateQRCodes(50000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7310&deliveryId=69029&itemIds=', '5万')">5万肥料（次数不详）</button>
             <button onclick="generateQRCodes(60000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68206&itemIds=', '6万')">6万肥料（每日一次）</button>
         </div>
     </div>
@@ -379,12 +379,16 @@
         }
         // ====== 扫码功能结束 ======
 
-        // CORS 代理列表（按可靠性排序，依次尝试）
+        // CORS 代理列表（并行竞争，谁先返回用谁）
         const CORS_PROXIES = [
             (url) => `https://proxy.cors.sh/${url}`,
             (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
             (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
             (url) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`,
+            (url) => `https://crossorigin.me/${url}`,
+            (url) => `https://cors-proxy.htmldriven.com/?url=${encodeURIComponent(url)}`,
+            (url) => `https://cors.x2u.in/${url}`,
+            (url) => `https://whateverorigin.org/get?url=${encodeURIComponent(url)}`,
         ];
 
         // 从分享文本中提取短链
@@ -395,64 +399,98 @@
 
         // 通过 CORS 代理请求 URL，返回响应文本
         async function fetchWithProxy(targetUrl) {
-            for (let i = 0; i < CORS_PROXIES.length; i++) {
-                try {
-                    const proxyUrl = CORS_PROXIES[i](targetUrl);
-                    // 使用 AbortController 兼容旧版 iOS（AbortSignal.timeout 仅 iOS 17+ 支持）
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
-                    const resp = await fetch(proxyUrl, {
-                        signal: controller.signal,
-                    });
-                    clearTimeout(timeoutId);
-                    if (resp.ok) {
-                        const text = await resp.text();
-                        if (text && text.length > 50) {
-                            return text;
-                        }
-                    }
-                } catch (e) {
-                    console.warn(`代理 ${i + 1} 失败:`, e.message);
-                }
+            // 并行请求所有代理，谁先返回就用谁的
+            const promises = CORS_PROXIES.map((proxyFn, i) => {
+                const proxyUrl = proxyFn(targetUrl);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                return fetch(proxyUrl, { signal: controller.signal })
+                    .then(resp => {
+                        clearTimeout(timeoutId);
+                        if (resp.ok) return resp.text();
+                        throw new Error('bad status');
+                    })
+                    .then(text => {
+                        if (text && text.length > 50) return text;
+                        throw new Error('too short');
+                    })
+                    .catch(e => { throw e; });
+            });
+            try {
+                return await Promise.any(promises);
+            } catch (e) {
+                return null;
             }
-            return null;
+        }
+
+        // 从 URL 中提取商品ID（零网络，毫秒级）
+        function extractItemIdFromUrl(url) {
+            // 按最常见的格式优先匹配
+            const m = url.match(/[?&]id=(\d+)/) || url.match(/itemIds=(\d+)/) || url.match(/\/i(\d+)\.htm/) || url.match(/\/(\d+)\.html?/);
+            return m ? m[1] : null;
+        }
+
+        // 通过短链直接跟随重定向获取最终URL（快路径，不走代理）
+        async function resolveShortUrl(shortUrl) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 1500);
+                const resp = await fetch(shortUrl, {
+                    redirect: 'follow',
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+                return resp.url;
+            } catch (e) {
+                return null;
+            }
         }
 
         // 通过淘口令/分享文本解析获取商品ID（异步，需请求网络）
         async function parseItemIdFromShareText(text) {
-            // 1. 先尝试直接从文本中提取短链
+            // 0. 极速路径：输入本身包含商品链接，直接本地提取（零网络）
+            const directId = extractItemIdFromUrl(text);
+            if (directId) return directId;
+
+            // 1. 提取短链
             let shortUrl = extractShortUrl(text);
             if (!shortUrl) {
-                // 纯淘口令兜底：构造猜测短链
                 const token = text.replace(/[^\w]/g, '');
                 if (!token) return null;
                 shortUrl = `https://m.tb.cn/h.${token}`;
             }
 
-            // 2. 请求淘宝中转页
-            const body = await fetchWithProxy(shortUrl);
-            if (!body) return null;
+            // 2. 快路径+慢路径并行：同时发起重定向跟踪和代理请求，取最快结果
+            const results = await Promise.allSettled([
+                // 快路径：直接跟随重定向
+                (async () => {
+                    const resolvedUrl = await resolveShortUrl(shortUrl);
+                    if (resolvedUrl && resolvedUrl !== shortUrl) {
+                        return extractItemIdFromUrl(resolvedUrl);
+                    }
+                    return null;
+                })(),
+                // 慢路径：CORS 代理获取完整 HTML
+                (async () => {
+                    const body = await fetchWithProxy(shortUrl);
+                    if (!body) return null;
+                    // 提取 var url = '...'
+                    const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
+                    if (urlMatch) {
+                        const id = extractItemIdFromUrl(urlMatch[1]);
+                        if (id) return id;
+                    }
+                    // 兜底：从 HTML 直接匹配
+                    const m = body.match(/itemIds=(\d+)/) || body.match(/[?&]id=(\d{8,})/);
+                    return m ? m[1] : null;
+                })(),
+            ]);
 
-            // 3. 提取 var url = '...'
-            let targetUrl = null;
-            const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
-            if (urlMatch) {
-                targetUrl = urlMatch[1];
+            // 取最先成功的有效结果
+            for (const r of results) {
+                if (r.status === 'fulfilled' && r.value) return r.value;
             }
-
-            // 4. 提取商品ID
-            let itemId = null;
-            if (targetUrl) {
-                const m = targetUrl.match(/itemIds=(\d+)/) || targetUrl.match(/[?&]id=(\d+)/);
-                if (m) itemId = m[1];
-            }
-            // 兜底：从整个 HTML 里找
-            if (!itemId) {
-                const m = body.match(/itemIds=(\d+)/) || body.match(/[?&]id=(\d{8,})/);
-                if (m) itemId = m[1];
-            }
-
-            return itemId;
+            return null;
         }
 
         // 从商品链接中提取商品ID的函数（保留原逻辑，作为兜底）
