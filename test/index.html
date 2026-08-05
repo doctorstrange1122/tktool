@@ -250,7 +250,7 @@
             <button onclick="generateQRCodes(30000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68479&itemIds=', '3万')">3万肥料（每日一次）</button>
             <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68422&itemIds=', '4万①')">4万肥料①（每日一次）</button>
             <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=74994&itemIds=', '4万②')">4万肥料②（每日一次）</button>
-            <button onclick="generateQRCodes(50000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7310&deliveryId=69029&itemIds=', '5万')">5万肥料（次数不详）</button>
+            <button onclick="generateQRCodes(50000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?&spma=farm&spmb=xsmszywlq&sceneId=7310&deliveryId=69029&itemIds=', '5万')">5万肥料（每日一次）</button>
             <button onclick="generateQRCodes(60000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&spma=farm&spmb=xsmszywlq&sceneId=7506&deliveryId=68206&itemIds=', '6万')">6万肥料（每日一次）</button>
         </div>
     </div>
@@ -451,25 +451,76 @@
 
         // 从 URL 中提取商品ID（零网络，毫秒级）
         function extractItemIdFromUrl(url) {
-            // 按最常见的格式优先匹配
-            const m = url.match(/[?&]id=(\d+)/) || url.match(/itemIds=(\d+)/) || url.match(/\/i(\d+)\.htm/) || url.match(/\/(\d+)\.html?/);
+            // 按最常见的格式优先匹配（id= 至少7位数字避免匹配短值如 YES）
+            const m = url.match(/[?&]id=(\d{7,})/)          // id= 后至少7位数字
+                || url.match(/topIds=(\d+)/)                 // 淘宝分享页的 topIds 参数
+                || url.match(/itemIds=(\d+)/)
+                || url.match(/\/i(\d+)\.htm/)
+                || url.match(/\/(\d+)\.html?/);
             return m ? m[1] : null;
         }
 
         // 通过短链直接跟随重定向获取最终URL（快路径，不走代理）
         async function resolveShortUrl(shortUrl) {
+            // 方法1：标准 fetch + redirect follow（也处理 e.tb.cn 返回 200 HTML 的情况）
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 1500);
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
                 const resp = await fetch(shortUrl, {
                     redirect: 'follow',
                     signal: controller.signal,
                 });
                 clearTimeout(timeoutId);
-                return resp.url;
+                if (resp.url && resp.url !== shortUrl) {
+                    return resp.url;
+                }
+                // e.tb.cn 返回 200 HTML（不重定向），直接从 body 提取
+                const body = await resp.text();
+                if (body && body.length > 200) {
+                    const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
+                    if (urlMatch) return urlMatch[1];
+                    const topMatch = body.match(/topIds=(\d+)/);
+                    if (topMatch) return 'https://item.taobao.com/item.htm?id=' + topMatch[1];
+                }
             } catch (e) {
-                return null;
+                console.warn('resolveShortUrl fetch failed:', e.message);
             }
+
+            // 方法2：no-cors 模式
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000);
+                const resp = await fetch(shortUrl, {
+                    mode: 'no-cors',
+                    redirect: 'follow',
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+                if (resp.url && resp.url !== shortUrl) {
+                    return resp.url;
+                }
+            } catch (e) {
+                console.warn('resolveShortUrl no-cors failed:', e.message);
+            }
+
+            // 方法3：XMLHttpRequest 兜底
+            return new Promise((resolve) => {
+                const xhr = new XMLHttpRequest();
+                xhr.timeout = 2000;
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.responseURL && xhr.responseURL !== shortUrl) {
+                            resolve(xhr.responseURL);
+                        } else {
+                            resolve(null);
+                        }
+                    }
+                };
+                xhr.onerror = () => resolve(null);
+                xhr.ontimeout = () => resolve(null);
+                xhr.open('HEAD', shortUrl, true);
+                xhr.send();
+            });
         }
 
         // 通过淘口令/分享文本解析获取商品ID（异步，需请求网络）
@@ -485,13 +536,15 @@
                 if (!token) return null;
                 shortUrl = `https://m.tb.cn/h.${token}`;
             }
+            console.log('解析短链:', shortUrl);
 
             // 2. 快路径+慢路径并行：同时发起重定向跟踪和代理请求，取最快结果
             const results = await Promise.allSettled([
                 // 快路径：直接跟随重定向
                 (async () => {
                     const resolvedUrl = await resolveShortUrl(shortUrl);
-                    if (resolvedUrl && resolvedUrl !== shortUrl) {
+                    console.log('重定向结果:', resolvedUrl);
+                    if (resolvedUrl) {
                         return extractItemIdFromUrl(resolvedUrl);
                     }
                     return null;
@@ -499,6 +552,7 @@
                 // 慢路径：CORS 代理获取完整 HTML
                 (async () => {
                     const body = await fetchWithProxy(shortUrl);
+                    console.log('代理结果长度:', body ? body.length : 0);
                     if (!body) return null;
                     // 提取 var url = '...'
                     const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
@@ -506,8 +560,8 @@
                         const id = extractItemIdFromUrl(urlMatch[1]);
                         if (id) return id;
                     }
-                    // 兜底：从 HTML 直接匹配
-                    const m = body.match(/itemIds=(\d+)/) || body.match(/[?&]id=(\d{8,})/);
+                    // 兜底：从 HTML 直接匹配（含 topIds）
+                    const m = body.match(/topIds=(\d+)/) || body.match(/itemIds=(\d+)/) || body.match(/[?&]id=(\d{7,})/);
                     return m ? m[1] : null;
                 })(),
             ]);
@@ -516,6 +570,7 @@
             for (const r of results) {
                 if (r.status === 'fulfilled' && r.value) return r.value;
             }
+            console.error('所有解析路径均失败');
             return null;
         }
 
