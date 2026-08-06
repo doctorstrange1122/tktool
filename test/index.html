@@ -429,7 +429,7 @@
             const promises = CORS_PROXIES.map((proxyFn, i) => {
                 const proxyUrl = proxyFn(targetUrl);
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
                 return fetch(proxyUrl, { signal: controller.signal })
                     .then(resp => {
                         clearTimeout(timeoutId);
@@ -462,65 +462,64 @@
 
         // 通过短链直接跟随重定向获取最终URL（快路径，不走代理）
         async function resolveShortUrl(shortUrl) {
-            // 方法1：标准 fetch + redirect follow（也处理 e.tb.cn 返回 200 HTML 的情况）
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 2000);
-                const resp = await fetch(shortUrl, {
-                    redirect: 'follow',
-                    signal: controller.signal,
-                });
-                clearTimeout(timeoutId);
-                if (resp.url && resp.url !== shortUrl) {
-                    return resp.url;
-                }
-                // e.tb.cn 返回 200 HTML（不重定向），直接从 body 提取
-                const body = await resp.text();
-                if (body && body.length > 200) {
-                    const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
-                    if (urlMatch) return urlMatch[1];
-                    const topMatch = body.match(/topIds=(\d+)/);
-                    if (topMatch) return 'https://item.taobao.com/item.htm?id=' + topMatch[1];
-                }
-            } catch (e) {
-                console.warn('resolveShortUrl fetch failed:', e.message);
-            }
-
-            // 方法2：no-cors 模式
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 2000);
-                const resp = await fetch(shortUrl, {
-                    mode: 'no-cors',
-                    redirect: 'follow',
-                    signal: controller.signal,
-                });
-                clearTimeout(timeoutId);
-                if (resp.url && resp.url !== shortUrl) {
-                    return resp.url;
-                }
-            } catch (e) {
-                console.warn('resolveShortUrl no-cors failed:', e.message);
-            }
-
-            // 方法3：XMLHttpRequest 兜底
-            return new Promise((resolve) => {
-                const xhr = new XMLHttpRequest();
-                xhr.timeout = 2000;
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4) {
-                        if (xhr.responseURL && xhr.responseURL !== shortUrl) {
-                            resolve(xhr.responseURL);
-                        } else {
-                            resolve(null);
-                        }
+            // 三种方法并行，谁先成功返回用谁
+            const results = await Promise.allSettled([
+                // 方法1：标准 fetch + redirect follow + body 提取
+                (async () => {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const resp = await fetch(shortUrl, {
+                        redirect: 'follow',
+                        signal: controller.signal,
+                    });
+                    clearTimeout(timeoutId);
+                    if (resp.url && resp.url !== shortUrl) return resp.url;
+                    const body = await resp.text();
+                    if (body && body.length > 200) {
+                        const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
+                        if (urlMatch) return urlMatch[1];
+                        const topMatch = body.match(/topIds=(\d+)/);
+                        if (topMatch) return 'https://item.taobao.com/item.htm?id=' + topMatch[1];
                     }
-                };
-                xhr.onerror = () => resolve(null);
-                xhr.ontimeout = () => resolve(null);
-                xhr.open('HEAD', shortUrl, true);
-                xhr.send();
-            });
+                    throw new Error('no redirect or body match');
+                })(),
+                // 方法2：no-cors 模式
+                (async () => {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const resp = await fetch(shortUrl, {
+                        mode: 'no-cors',
+                        redirect: 'follow',
+                        signal: controller.signal,
+                    });
+                    clearTimeout(timeoutId);
+                    if (resp.url && resp.url !== shortUrl) return resp.url;
+                    throw new Error('no-cors no redirect');
+                })(),
+                // 方法3：XMLHttpRequest
+                new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.timeout = 3000;
+                    xhr.onreadystatechange = function() {
+                        if (xhr.readyState === 4) {
+                            if (xhr.responseURL && xhr.responseURL !== shortUrl) {
+                                resolve(xhr.responseURL);
+                            } else {
+                                reject(new Error('xhr no redirect'));
+                            }
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error('xhr error'));
+                    xhr.ontimeout = () => reject(new Error('xhr timeout'));
+                    xhr.open('HEAD', shortUrl, true);
+                    xhr.send();
+                }),
+            ]);
+
+            for (const r of results) {
+                if (r.status === 'fulfilled' && r.value) return r.value;
+            }
+            return null;
         }
 
         // 通过淘口令/分享文本解析获取商品ID（异步，需请求网络）
