@@ -114,18 +114,22 @@
         /* 提示文字 — 醒目颜色 */
         .tip-text { font-size: 13px; color: #d4884a; font-weight: 500; margin-top: 6px; }
 
-        /* 生成按钮组 */
+        /* 生成按钮组 - 221排列 */
         .button-group {
-            display: flex; flex-direction: column; gap: 12px; align-items: center;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
         }
         .button-group button {
-            width: 100%; max-width: 320px;
-            padding: 14px 20px; font-size: 16px; font-weight: 600;
+            padding: 14px 12px; font-size: 15px; font-weight: 600;
             border: none; border-radius: 12px; cursor: pointer;
             background: linear-gradient(135deg, #7a93ac, #6b82a0);
             color: #fff;
             box-shadow: 0 4px 14px rgba(110,130,160,0.25);
             transition: transform 0.1s, box-shadow 0.2s;
+        }
+        .button-group button:last-child:nth-child(5) {
+            grid-column: 1 / -1;
         }
         .button-group button:active {
             transform: scale(0.97);
@@ -133,8 +137,29 @@
         }
 
         /* 结果区 */
-        #resultArea { margin-top: 0; margin-bottom: 18px; text-align: center; }
-        #resultArea .qr-code-container { text-align: center; }
+        #resultArea { margin-top: 0; margin-bottom: 18px; }
+        .qr-code-container {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            text-align: center;
+        }
+        .qr-code-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .qr-code-right {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-width: 140px;
+        }
         #resultArea img { display: inline-block; }
         .result-card { text-align: center; }
         .result-card img {
@@ -164,18 +189,16 @@
         /* 操作按钮 */
         .action-buttons {
             display: flex; flex-direction: column; gap: 10px; align-items: center;
-            margin-top: 12px;
         }
         .action-buttons button {
-            width: 90%; max-width: 280px;
+            width: 100%; min-width: 130px;
             padding: 12px 16px; font-size: 14px; font-weight: 600;
             border: none; border-radius: 8px; cursor: pointer;
             transition: opacity 0.2s, transform 0.1s;
         }
         .action-buttons button:active { transform: scale(0.96); }
         .action-buttons button:nth-child(1) { background: #7a93ac; color: #fff; }
-        .action-buttons button:nth-child(2) { background: #eef2f6; color: #5a6c7e; }
-        .action-buttons button:nth-child(4) { background: #6a9a7a; color: #fff; }
+        .action-buttons button:nth-child(3) { background: #6a9a7a; color: #fff; }
         .action-buttons .copy-success {
             color: #6a9a7a; font-size: 12px; line-height: 38px; display: none;
         }
@@ -839,45 +862,51 @@
                 const mergedImg = document.createElement('img');
                 mergedImg.src = currentQRCodeWithTextCanvas.toDataURL('image/png');
                 mergedImg.alt = '带文字的二维码';
-                mergedImg.style.maxWidth = '200px';
+                mergedImg.style.maxWidth = '180px';
                 mergedImg.style.borderRadius = '8px';
                 mergedImg.style.cursor = 'pointer';
                 mergedImg.style.webkitTouchCallout = 'none';
 
                 // 长按保存：APK 用原生保存到图库，浏览器弹出系统菜单（含"保存图片"选项）
                 mergedImg.addEventListener('contextmenu', function(e) {
-                    // 浏览器环境：不阻止，让系统长按菜单弹出（含"保存图片"）
                     if (isInApp) {
-                        e.preventDefault(); // APK 环境阻止系统菜单，用自定义弹窗
+                        e.preventDefault();
                     }
                 });
                 let longPressTimer;
                 mergedImg.addEventListener('touchstart', function(e) {
                     longPressTimer = setTimeout(function() {
                         if (isInApp && NativeBridge.saveImage) {
-                            // APK 环境：长按弹出确认框，确认后原生保存到图库
                             if (confirm('是否保存二维码图片到图库？')) {
                                 NativeBridge.saveImage(currentQRCodeWithTextCanvas.toDataURL('image/png'));
                             }
                         }
-                        // 浏览器环境：由 contextmenu 事件触发系统菜单（含"保存图片"）
                     }, 600);
                 });
                 mergedImg.addEventListener('touchend', function() { clearTimeout(longPressTimer); });
                 mergedImg.addEventListener('touchmove', function() { clearTimeout(longPressTimer); });
 
-                container.appendChild(mergedImg);
+                // 左侧：二维码
+                const qrLeft = document.createElement('div');
+                qrLeft.className = 'qr-code-left';
+                qrLeft.appendChild(mergedImg);
+
+                // 右侧：操作区
+                const qrRight = document.createElement('div');
+                qrRight.className = 'qr-code-right';
 
                 actionButtons.innerHTML = `
-                    <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制内容格式</button>
+                    <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制链接</button>
                     <span class="copy-success">✓ 已复制</span>
                     <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
                 `;
 
-                // 将元素添加到容器中
-                container.appendChild(contentInfo);
-                container.appendChild(saveTip);
-                container.appendChild(actionButtons);
+                qrRight.appendChild(contentInfo);
+                qrRight.appendChild(saveTip);
+                qrRight.appendChild(actionButtons);
+
+                container.appendChild(qrLeft);
+                container.appendChild(qrRight);
 
                 // 更新结果区域
                 resultArea.innerHTML = '';
