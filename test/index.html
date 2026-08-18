@@ -128,7 +128,8 @@
             box-shadow: 0 4px 14px rgba(110,130,160,0.25);
             transition: transform 0.1s, box-shadow 0.2s;
         }
-        .button-group button:last-child:nth-child(5) {
+        /* 当按钮总数为奇数时，最后一个按钮独占一整行，宽度与上方两按钮对齐 */
+        .button-group button:last-child:nth-child(odd) {
             grid-column: 1 / -1;
         }
         .button-group button:active {
