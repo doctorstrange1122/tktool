@@ -238,7 +238,8 @@ public class FloatingService extends Service {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, MainActivity.class);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                intent.putExtra("scroll_to_top", true);
                 startActivity(intent);
                 hideActionPanel();
             }
@@ -315,6 +316,7 @@ public class FloatingService extends Service {
             Intent intent = new Intent(this, MainActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             intent.putExtra("read_clipboard", true);
+            intent.putExtra("scroll_to_top", true);
             startActivity(intent);
             Toast.makeText(this, "正在打开工具并读取剪贴板...", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {

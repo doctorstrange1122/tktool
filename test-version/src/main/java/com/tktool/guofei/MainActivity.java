@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SCAN = 1003;
 
     private boolean pendingClipboardRead = false;
+    private boolean pendingScrollToTop = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,7 +53,12 @@ public class MainActivity extends Activity {
         handleShareIntent(getIntent());
         if (getIntent().getBooleanExtra("read_clipboard", false)) {
             pendingClipboardRead = true;
-        }        WebSettings settings = webView.getSettings();
+        }
+        // 检查是否需要滚动到顶部
+        if (getIntent().getBooleanExtra("scroll_to_top", false)) {
+            pendingScrollToTop = true;
+        }
+        WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
@@ -73,6 +79,23 @@ public class MainActivity extends Activity {
                 if (pendingClipboardRead && url != null && url.contains("doctorstrange1122")) {
                     pendingClipboardRead = false;
                     readClipboardAndFill();
+                    // 读取剪贴板后滚动到顶部
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            webView.evaluateJavascript("window.scrollTo(0, 0);", null);
+                        }
+                    }, 300);
+                }
+                // 处理滚动到顶部请求
+                if (pendingScrollToTop && url != null && url.contains("doctorstrange1122")) {
+                    pendingScrollToTop = false;
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            webView.evaluateJavascript("window.scrollTo(0, 0);", null);
+                        }
+                    }, 300);
                 }
             }
 
@@ -360,9 +383,31 @@ public class MainActivity extends Activity {
                             && webView.getUrl().contains("doctorstrange1122")) {
                         pendingClipboardRead = false;
                         readClipboardAndFill();
+                        // 读取剪贴板后滚动到顶部
+                        webView.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                webView.evaluateJavascript("window.scrollTo(0, 0);", null);
+                            }
+                        }, 300);
                     }
                 }
             }, 800);
+        }
+        // 处理滚动到顶部请求
+        if (intent.getBooleanExtra("scroll_to_top", false)) {
+            if (webView.getUrl() != null && webView.getUrl().contains("doctorstrange1122")) {
+                // 页面已加载，直接滚动到顶部
+                webView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        webView.evaluateJavascript("window.scrollTo(0, 0);", null);
+                    }
+                }, 300);
+            } else {
+                // 页面还在加载中，标记待处理
+                pendingScrollToTop = true;
+            }
         }
     }
 
