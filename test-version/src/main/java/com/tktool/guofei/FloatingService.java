@@ -219,6 +219,20 @@ public class FloatingService extends Service {
         // 分隔线
         panel.addView(createDivider());
 
+        // 扫码输入
+        panel.addView(createPanelItem("扫码输入", 0xFFFFFFFF, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(FloatingService.this, ScanActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                hideActionPanel();
+            }
+        }));
+
+        // 分隔线
+        panel.addView(createDivider());
+
         // 打开工具
         panel.addView(createPanelItem("打开工具", 0xFFFFFFFF, new View.OnClickListener() {
             @Override
