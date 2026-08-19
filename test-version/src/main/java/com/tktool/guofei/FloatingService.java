@@ -147,7 +147,7 @@ public class FloatingService extends Service {
         actionPanel = createActionPanel();
 
         panelParams = new WindowManager.LayoutParams(
-                dpToPx(150),
+                dpToPx(140),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -212,19 +212,20 @@ public class FloatingService extends Service {
             panel.setClipToOutline(true);
         }
 
-        // 读取剪贴板
-        panel.addView(createPanelItem("读取剪贴板", 0xFFE8E8E8, new View.OnClickListener() {
+        int pad = dpToPx(3);
+        panel.setPadding(pad, pad, pad, pad);
+
+        // === 第1行：读取剪贴板 | 扫码输入 ===
+        LinearLayout row1 = createGridRow();
+        row1.addView(createPanelItem("读取剪贴板", 0xFFE8E8E8, 10, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 readClipboardAndOpen();
                 hideActionPanel();
             }
         }));
-
-        panel.addView(createDivider());
-
-        // 扫码输入
-        panel.addView(createPanelItem("扫码输入", 0xFFE8E8E8, new View.OnClickListener() {
+        row1.addView(createGridDivider(dpToPx(8)));
+        row1.addView(createPanelItem("扫码输入", 0xFFE8E8E8, 10, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, ScanActivity.class);
@@ -233,11 +234,13 @@ public class FloatingService extends Service {
                 hideActionPanel();
             }
         }));
+        panel.addView(row1);
 
-        panel.addView(createDivider());
+        panel.addView(createHDivider());
 
-        // 打开工具
-        panel.addView(createPanelItem("打开工具", 0xFFE8E8E8, new View.OnClickListener() {
+        // === 第2行：打开工具（居中，主操作，高亮底色） ===
+        LinearLayout row2 = createGridRow();
+        row2.addView(createPanelItem("打开工具", 0xFFFFFFFF, 12, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, MainActivity.class);
@@ -247,38 +250,51 @@ public class FloatingService extends Service {
                 hideActionPanel();
             }
         }));
+        // 主操作高亮背景
+        row2.getChildAt(0).setBackground(
+            new android.graphics.drawable.ColorDrawable(0x336A9A7A));
+        panel.addView(row2);
 
-        panel.addView(createDivider());
+        panel.addView(createHDivider());
 
-        // 收起面板（仅隐藏面板，不关闭悬浮窗服务）
-        panel.addView(createPanelItem("收起面板", 0xFFB0B0B0, new View.OnClickListener() {
+        // === 第3行：收起面板 | 关闭悬浮窗 ===
+        LinearLayout row3 = createGridRow();
+        row3.addView(createPanelItem("收起面板", 0xFFB0B0B0, 10, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 hideActionPanel();
             }
         }));
-
-        panel.addView(createDivider());
-
-        // 关闭悬浮窗
-        panel.addView(createPanelItem("关闭悬浮窗", 0xFFFF6B6B, new View.OnClickListener() {
+        row3.addView(createGridDivider(dpToPx(8)));
+        row3.addView(createPanelItem("关闭悬浮窗", 0xFFFF6B6B, 10, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 hideActionPanel();
                 stopSelf();
             }
         }));
+        panel.addView(row3);
 
         return panel;
     }
 
-    private TextView createPanelItem(String text, int color, View.OnClickListener listener) {
+    private LinearLayout createGridRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        return row;
+    }
+
+    private TextView createPanelItem(String text, int color, float sizeSp, View.OnClickListener listener) {
         TextView tv = new TextView(this);
         tv.setText(text);
-        tv.setTextSize(13);
+        tv.setTextSize(sizeSp);
         tv.setTextColor(color);
         tv.setGravity(Gravity.CENTER);
-        tv.setPadding(dpToPx(12), dpToPx(9), dpToPx(12), dpToPx(9));
+        tv.setSingleLine(true); // 防止文字换行
+        tv.setPadding(dpToPx(4), dpToPx(9), dpToPx(4), dpToPx(9));
         // 按压反馈
         android.graphics.drawable.StateListDrawable itemBg = new android.graphics.drawable.StateListDrawable();
         itemBg.addState(new int[]{android.R.attr.state_pressed}, new android.graphics.drawable.ColorDrawable(0x33FFFFFF));
@@ -286,17 +302,28 @@ public class FloatingService extends Service {
         tv.setBackground(itemBg);
         tv.setOnClickListener(listener);
         tv.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         return tv;
     }
 
-    private View createDivider() {
+    // 行间水平分隔线
+    private View createHDivider() {
         View divider = new View(this);
         divider.setBackgroundColor(0x1AFFFFFF);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1));
-        lp.setMargins(dpToPx(16), 0, dpToPx(16), 0);
+        divider.setLayoutParams(lp);
+        return divider;
+    }
+
+    // 行内竖直分隔线
+    private View createGridDivider(int height) {
+        View divider = new View(this);
+        divider.setBackgroundColor(0x1AFFFFFF);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                dpToPx(1), height);
+        lp.gravity = Gravity.CENTER_VERTICAL;
         divider.setLayoutParams(lp);
         return divider;
     }
