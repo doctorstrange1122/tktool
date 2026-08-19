@@ -20,6 +20,8 @@
             min-height: 100vh;
             padding: 16px;
             color: #3a4a5a;
+            overflow-x: hidden;
+            position: relative;
         }
         .wrapper { max-width: 480px; margin: 0 auto; }
 
@@ -47,34 +49,38 @@
             background: #eaf0f6;
             border: 1px solid #c5d2de;
             border-radius: 10px;
-            padding: 12px 14px;
+            padding: 10px 12px;
             margin-bottom: 14px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
+            flex-wrap: wrap;
+            overflow: hidden;
+            max-width: 100%;
         }
         .float-control-left { flex-shrink: 0; }
-        .float-control-right { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .float-control-right { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; }
         .float-toggle-btn {
-            padding: 10px 20px; font-size: 14px; font-weight: 600;
+            padding: 8px 16px; font-size: 13px; font-weight: 600;
             background: #6a9a7a; color: #fff;
             border: none; border-radius: 20px; cursor: pointer;
             white-space: nowrap;
         }
         .float-toggle-btn.active { background: #c0392b; }
         .float-toggle-btn:active { transform: scale(0.96); }
-        .float-opacity-label { font-size: 12px; color: #5a7a96; white-space: nowrap; }
+        .float-opacity-label { font-size: 11px; color: #5a7a96; white-space: nowrap; flex-shrink: 0; }
         .float-opacity-slider {
             flex: 1; -webkit-appearance: none; appearance: none;
             height: 6px; border-radius: 3px;
             background: #c5d2de; outline: none; cursor: pointer;
+            min-width: 60px; max-width: 100%;
         }
         .float-opacity-slider::-webkit-slider-thumb {
             -webkit-appearance: none; appearance: none;
-            width: 18px; height: 18px; border-radius: 50%;
+            width: 16px; height: 16px; border-radius: 50%;
             background: #6a9a7a; cursor: pointer;
         }
-        .float-opacity-value { font-size: 12px; color: #5a7a96; min-width: 30px; text-align: right; }
+        .float-opacity-value { font-size: 11px; color: #5a7a96; min-width: 28px; text-align: right; flex-shrink: 0; }
 
         /* 输入区 */
         .input-section { margin-bottom: 14px; }
