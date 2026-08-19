@@ -147,7 +147,7 @@ public class FloatingService extends Service {
         actionPanel = createActionPanel();
 
         panelParams = new WindowManager.LayoutParams(
-                dpToPx(200),
+                dpToPx(150),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -201,50 +201,16 @@ public class FloatingService extends Service {
         // 圆角矩形背景
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setCornerRadius(dpToPx(16));
+        bg.setCornerRadius(dpToPx(14));
         bg.setColor(0xF02C2C2C);
         bg.setStroke(dpToPx(1), 0x33FFFFFF);
         panel.setBackground(bg);
-        panel.setElevation(dpToPx(12));
+        panel.setElevation(dpToPx(10));
 
         // 裁剪子视图到圆角范围内
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             panel.setClipToOutline(true);
         }
-
-        // 标题栏
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        GradientDrawable headerBg = new GradientDrawable();
-        headerBg.setShape(GradientDrawable.RECTANGLE);
-        headerBg.setColor(0xFF3A6B5C);
-        header.setBackground(headerBg);
-        header.setPadding(dpToPx(16), dpToPx(10), dpToPx(8), dpToPx(10));
-
-        TextView title = new TextView(this);
-        title.setText("过肥工具");
-        title.setTextSize(15);
-        title.setTextColor(0xFFFFFFFF);
-        title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
-        title.setLayoutParams(new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView closeBtn = new TextView(this);
-        closeBtn.setText("\u00D7");
-        closeBtn.setTextSize(18);
-        closeBtn.setTextColor(0xCCFFFFFF);
-        closeBtn.setPadding(dpToPx(12), dpToPx(2), dpToPx(4), dpToPx(2));
-        closeBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                hideActionPanel();
-            }
-        });
-
-        header.addView(title);
-        header.addView(closeBtn);
-        panel.addView(header);
 
         // 读取剪贴板
         panel.addView(createPanelItem("读取剪贴板", 0xFFE8E8E8, new View.OnClickListener() {
@@ -284,6 +250,16 @@ public class FloatingService extends Service {
 
         panel.addView(createDivider());
 
+        // 收起面板（仅隐藏面板，不关闭悬浮窗服务）
+        panel.addView(createPanelItem("收起面板", 0xFFB0B0B0, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideActionPanel();
+            }
+        }));
+
+        panel.addView(createDivider());
+
         // 关闭悬浮窗
         panel.addView(createPanelItem("关闭悬浮窗", 0xFFFF6B6B, new View.OnClickListener() {
             @Override
@@ -293,19 +269,16 @@ public class FloatingService extends Service {
             }
         }));
 
-        // 底部留白
-        panel.addView(createSpacer(dpToPx(4)));
-
         return panel;
     }
 
     private TextView createPanelItem(String text, int color, View.OnClickListener listener) {
         TextView tv = new TextView(this);
         tv.setText(text);
-        tv.setTextSize(15);
+        tv.setTextSize(13);
         tv.setTextColor(color);
-        tv.setGravity(Gravity.CENTER_VERTICAL);
-        tv.setPadding(dpToPx(20), dpToPx(13), dpToPx(20), dpToPx(13));
+        tv.setGravity(Gravity.CENTER);
+        tv.setPadding(dpToPx(12), dpToPx(9), dpToPx(12), dpToPx(9));
         // 按压反馈
         android.graphics.drawable.StateListDrawable itemBg = new android.graphics.drawable.StateListDrawable();
         itemBg.addState(new int[]{android.R.attr.state_pressed}, new android.graphics.drawable.ColorDrawable(0x33FFFFFF));
@@ -326,14 +299,6 @@ public class FloatingService extends Service {
         lp.setMargins(dpToPx(16), 0, dpToPx(16), 0);
         divider.setLayoutParams(lp);
         return divider;
-    }
-
-    private View createSpacer(int height) {
-        View spacer = new View(this);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, height);
-        spacer.setLayoutParams(lp);
-        return spacer;
     }
 
     private void showActionPanel() {
