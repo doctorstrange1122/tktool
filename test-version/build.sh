@@ -21,7 +21,7 @@ KEY_PASS="tktool2026"
 
 echo "========================================"
 echo "  过肥工具 APK 构建"
-echo "  包名: com.tktool.test"
+echo "  包名: com.tktool.guofei"
 echo "========================================"
 
 # 1. 准备构建目录
@@ -81,12 +81,12 @@ javac -source 1.8 -target 1.8 \
     -cp "$ANDROID_JAR:$ZXING_JAR" \
     -sourcepath "$OUT_DIR/gen" \
     -d "$OUT_DIR/java_classes" \
-    "$SRC"/java/com/tktool/test/*.java "$OUT_DIR"/gen/com/tktool/test/R.java 2>/dev/null || \
+    "$SRC"/java/com/tktool/guofei/*.java "$OUT_DIR"/gen/com/tktool/guofei/R.java 2>/dev/null || \
 javac -source 1.8 -target 1.8 \
     -bootclasspath /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar \
     -cp "$ANDROID_JAR:$ZXING_JAR" \
     -d "$OUT_DIR/java_classes" \
-    "$SRC"/java/com/tktool/test/*.java
+    "$SRC"/java/com/tktool/guofei/*.java
 echo "       编译完成"
 
 # 7. D8 转换 dex
