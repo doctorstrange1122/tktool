@@ -425,7 +425,7 @@
             const promises = CORS_PROXIES.map((proxyFn, i) => {
                 const proxyUrl = proxyFn(targetUrl);
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
                 return fetch(proxyUrl, { signal: controller.signal })
                     .then(resp => {
                         clearTimeout(timeoutId);
@@ -458,65 +458,51 @@
 
         // 通过短链直接跟随重定向获取最终URL（快路径，不走代理）
         async function resolveShortUrl(shortUrl) {
-            // 三种方法并行，谁先成功返回用谁
-            const results = await Promise.allSettled([
-                // 方法1：标准 fetch + redirect follow + body 提取
-                (async () => {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
-                    const resp = await fetch(shortUrl, {
-                        redirect: 'follow',
-                        signal: controller.signal,
-                    });
-                    clearTimeout(timeoutId);
-                    if (resp.url && resp.url !== shortUrl) return resp.url;
-                    // e.tb.cn 返回 200 HTML，直接从 body 提取
-                    const body = await resp.text();
-                    if (body && body.length > 200) {
-                        const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
-                        if (urlMatch) return urlMatch[1];
-                        const topMatch = body.match(/topIds=(\d+)/);
-                        if (topMatch) return 'https://item.taobao.com/item.htm?id=' + topMatch[1];
-                    }
-                    throw new Error('no redirect or body match');
-                })(),
-                // 方法2：no-cors 模式
-                (async () => {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
-                    const resp = await fetch(shortUrl, {
-                        mode: 'no-cors',
-                        redirect: 'follow',
-                        signal: controller.signal,
-                    });
-                    clearTimeout(timeoutId);
-                    if (resp.url && resp.url !== shortUrl) return resp.url;
-                    throw new Error('no-cors no redirect');
-                })(),
-                // 方法3：XMLHttpRequest
-                new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.timeout = 3000;
-                    xhr.onreadystatechange = function() {
-                        if (xhr.readyState === 4) {
-                            if (xhr.responseURL && xhr.responseURL !== shortUrl) {
-                                resolve(xhr.responseURL);
-                            } else {
-                                reject(new Error('xhr no redirect'));
-                            }
+            // 两种方法并行，谁先成功返回用谁
+            try {
+                return await Promise.any([
+                    // 方法1：标准 fetch + redirect follow + body 提取
+                    (async () => {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 5000);
+                        const resp = await fetch(shortUrl, {
+                            redirect: 'follow',
+                            signal: controller.signal,
+                        });
+                        clearTimeout(timeoutId);
+                        if (resp.url && resp.url !== shortUrl) return resp.url;
+                        // e.tb.cn 返回 200 HTML，直接从 body 提取
+                        const body = await resp.text();
+                        if (body && body.length > 200) {
+                            const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
+                            if (urlMatch) return urlMatch[1];
+                            const topMatch = body.match(/topIds=(\d+)/);
+                            if (topMatch) return 'https://item.taobao.com/item.htm?id=' + topMatch[1];
                         }
-                    };
-                    xhr.onerror = () => reject(new Error('xhr error'));
-                    xhr.ontimeout = () => reject(new Error('xhr timeout'));
-                    xhr.open('HEAD', shortUrl, true);
-                    xhr.send();
-                }),
-            ]);
-
-            for (const r of results) {
-                if (r.status === 'fulfilled' && r.value) return r.value;
+                        throw new Error('no redirect or body match');
+                    })(),
+                    // 方法2：XMLHttpRequest HEAD
+                    new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.timeout = 3000;
+                        xhr.onreadystatechange = function() {
+                            if (xhr.readyState === 4) {
+                                if (xhr.responseURL && xhr.responseURL !== shortUrl) {
+                                    resolve(xhr.responseURL);
+                                } else {
+                                    reject(new Error('xhr no redirect'));
+                                }
+                            }
+                        };
+                        xhr.onerror = () => reject(new Error('xhr error'));
+                        xhr.ontimeout = () => reject(new Error('xhr timeout'));
+                        xhr.open('HEAD', shortUrl, true);
+                        xhr.send();
+                    }),
+                ]);
+            } catch (e) {
+                return null;
             }
-            return null;
         }
 
         // 通过淘口令/分享文本解析获取商品ID（异步，需请求网络）
@@ -534,40 +520,39 @@
             }
             console.log('解析短链:', shortUrl);
 
-            // 2. 快路径+慢路径并行：同时发起重定向跟踪和代理请求，取最快结果
-            const results = await Promise.allSettled([
-                // 快路径：直接跟随重定向
-                (async () => {
-                    const resolvedUrl = await resolveShortUrl(shortUrl);
-                    console.log('重定向结果:', resolvedUrl);
-                    if (resolvedUrl) {
-                        return extractItemIdFromUrl(resolvedUrl);
-                    }
-                    return null;
-                })(),
-                // 慢路径：CORS 代理获取完整 HTML
-                (async () => {
-                    const body = await fetchWithProxy(shortUrl);
-                    console.log('代理结果长度:', body ? body.length : 0);
-                    if (!body) return null;
-                    // 提取 var url = '...'
-                    const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
-                    if (urlMatch) {
-                        const id = extractItemIdFromUrl(urlMatch[1]);
-                        if (id) return id;
-                    }
-                    // 兜底：从 HTML 直接匹配（含 topIds）
-                    const m = body.match(/topIds=(\d+)/) || body.match(/itemIds=(\d+)/) || body.match(/[?&]id=(\d{7,})/);
-                    return m ? m[1] : null;
-                })(),
-            ]);
-
-            // 取最先成功的有效结果
-            for (const r of results) {
-                if (r.status === 'fulfilled' && r.value) return r.value;
+            // 2. 快路径+慢路径并行，谁先成功用谁
+            try {
+                return await Promise.any([
+                    // 快路径：直接跟随重定向
+                    (async () => {
+                        const resolvedUrl = await resolveShortUrl(shortUrl);
+                        console.log('重定向结果:', resolvedUrl);
+                        if (!resolvedUrl) throw new Error('resolve failed');
+                        const id = extractItemIdFromUrl(resolvedUrl);
+                        if (!id) throw new Error('no id in resolved url');
+                        return id;
+                    })(),
+                    // 慢路径：CORS 代理获取完整 HTML
+                    (async () => {
+                        const body = await fetchWithProxy(shortUrl);
+                        console.log('代理结果长度:', body ? body.length : 0);
+                        if (!body) throw new Error('proxy failed');
+                        // 提取 var url = '...'
+                        const urlMatch = body.match(/var\s+url\s*=\s*'([^']+)'/);
+                        if (urlMatch) {
+                            const id = extractItemIdFromUrl(urlMatch[1]);
+                            if (id) return id;
+                        }
+                        // 兜底：从 HTML 直接匹配（含 topIds）
+                        const m = body.match(/topIds=(\d+)/) || body.match(/itemIds=(\d+)/) || body.match(/[?&]id=(\d{7,})/);
+                        if (m) return m[1];
+                        throw new Error('no id in proxy body');
+                    })(),
+                ]);
+            } catch (e) {
+                console.error('所有解析路径均失败');
+                return null;
             }
-            console.error('所有解析路径均失败');
-            return null;
         }
 
         // 从商品链接中提取商品ID的函数（保留原逻辑，作为兜底）
