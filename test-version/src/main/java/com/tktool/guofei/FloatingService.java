@@ -147,7 +147,7 @@ public class FloatingService extends Service {
         actionPanel = createActionPanel();
 
         panelParams = new WindowManager.LayoutParams(
-                dpToPx(180),
+                dpToPx(200),
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -184,31 +184,70 @@ public class FloatingService extends Service {
     }
 
     private void applyAlpha() {
+        float ratio = currentAlpha / 255f;
         if (floatingBall != null) {
-            floatingBall.setAlpha(currentAlpha / 255f);
+            floatingBall.setAlpha(ratio);
+        }
+        // 面板透明度也跟随设置
+        if (actionPanel != null) {
+            actionPanel.setAlpha(ratio);
         }
     }
 
     private View createActionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
 
         // 圆角矩形背景
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.RECTANGLE);
-        bg.setCornerRadius(dpToPx(12));
+        bg.setCornerRadius(dpToPx(16));
         bg.setColor(0xF02C2C2C);
         bg.setStroke(dpToPx(1), 0x33FFFFFF);
         panel.setBackground(bg);
-        panel.setElevation(dpToPx(8));
-        int pad = dpToPx(4);
-        panel.setPadding(pad, pad, pad, pad);
+        panel.setElevation(dpToPx(12));
+
+        // 裁剪子视图到圆角范围内
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            panel.setClipToOutline(true);
+        }
+
+        // 标题栏
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable headerBg = new GradientDrawable();
+        headerBg.setShape(GradientDrawable.RECTANGLE);
+        headerBg.setColor(0xFF3A6B5C);
+        header.setBackground(headerBg);
+        header.setPadding(dpToPx(16), dpToPx(10), dpToPx(8), dpToPx(10));
+
+        TextView title = new TextView(this);
+        title.setText("过肥工具");
+        title.setTextSize(15);
+        title.setTextColor(0xFFFFFFFF);
+        title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
+        title.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView closeBtn = new TextView(this);
+        closeBtn.setText("\u00D7");
+        closeBtn.setTextSize(18);
+        closeBtn.setTextColor(0xCCFFFFFF);
+        closeBtn.setPadding(dpToPx(12), dpToPx(2), dpToPx(4), dpToPx(2));
+        closeBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideActionPanel();
+            }
+        });
+
+        header.addView(title);
+        header.addView(closeBtn);
+        panel.addView(header);
 
         // 读取剪贴板
-        panel.addView(createPanelItem("读取剪贴板", 0xFFFFFFFF, new View.OnClickListener() {
+        panel.addView(createPanelItem("读取剪贴板", 0xFFE8E8E8, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 readClipboardAndOpen();
@@ -216,11 +255,10 @@ public class FloatingService extends Service {
             }
         }));
 
-        // 分隔线
         panel.addView(createDivider());
 
         // 扫码输入
-        panel.addView(createPanelItem("扫码输入", 0xFFFFFFFF, new View.OnClickListener() {
+        panel.addView(createPanelItem("扫码输入", 0xFFE8E8E8, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, ScanActivity.class);
@@ -230,11 +268,10 @@ public class FloatingService extends Service {
             }
         }));
 
-        // 分隔线
         panel.addView(createDivider());
 
         // 打开工具
-        panel.addView(createPanelItem("打开工具", 0xFFFFFFFF, new View.OnClickListener() {
+        panel.addView(createPanelItem("打开工具", 0xFFE8E8E8, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, MainActivity.class);
@@ -245,11 +282,10 @@ public class FloatingService extends Service {
             }
         }));
 
-        // 分隔线
         panel.addView(createDivider());
 
         // 关闭悬浮窗
-        panel.addView(createPanelItem("关闭悬浮窗", 0xFFFF6666, new View.OnClickListener() {
+        panel.addView(createPanelItem("关闭悬浮窗", 0xFFFF6B6B, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 hideActionPanel();
@@ -257,32 +293,47 @@ public class FloatingService extends Service {
             }
         }));
 
+        // 底部留白
+        panel.addView(createSpacer(dpToPx(4)));
+
         return panel;
     }
 
     private TextView createPanelItem(String text, int color, View.OnClickListener listener) {
         TextView tv = new TextView(this);
         tv.setText(text);
-        tv.setTextSize(14);
+        tv.setTextSize(15);
         tv.setTextColor(color);
         tv.setGravity(Gravity.CENTER_VERTICAL);
-        tv.setPadding(dpToPx(20), dpToPx(12), dpToPx(20), dpToPx(12));
-        tv.setBackgroundColor(0x00000000);
+        tv.setPadding(dpToPx(20), dpToPx(13), dpToPx(20), dpToPx(13));
+        // 按压反馈
+        android.graphics.drawable.StateListDrawable itemBg = new android.graphics.drawable.StateListDrawable();
+        itemBg.addState(new int[]{android.R.attr.state_pressed}, new android.graphics.drawable.ColorDrawable(0x33FFFFFF));
+        itemBg.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(0x00000000));
+        tv.setBackground(itemBg);
         tv.setOnClickListener(listener);
         tv.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         return tv;
     }
 
     private View createDivider() {
         View divider = new View(this);
-        divider.setBackgroundColor(0x22FFFFFF);
+        divider.setBackgroundColor(0x1AFFFFFF);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1));
         lp.setMargins(dpToPx(16), 0, dpToPx(16), 0);
         divider.setLayoutParams(lp);
         return divider;
+    }
+
+    private View createSpacer(int height) {
+        View spacer = new View(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, height);
+        spacer.setLayoutParams(lp);
+        return spacer;
     }
 
     private void showActionPanel() {
