@@ -9,7 +9,11 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.PixelFormat;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
@@ -22,11 +26,12 @@ import android.widget.Toast;
 
 public class FloatingService extends Service {
     private WindowManager windowManager;
-    private TextView floatingBall;
+    private View floatingBall;
     private View actionPanel;
     private WindowManager.LayoutParams ballParams;
     private WindowManager.LayoutParams panelParams;
     private boolean panelShowing = false;
+    private int currentAlpha = 204; // 默认 80% (255 * 0.8)
 
     private static final int NOTIFICATION_ID = 2001;
 
@@ -41,6 +46,9 @@ public class FloatingService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.hasExtra("alpha")) {
+            setAlpha(intent.getIntExtra("alpha", 80));
+        }
         return START_STICKY;
     }
 
@@ -82,41 +90,45 @@ public class FloatingService extends Service {
     private void createFloatingBall() {
         int size = dpToPx(52);
 
-        // 创建圆形悬浮球，使用 APP 图标
-        floatingBall = new TextView(this);
-        floatingBall.setGravity(Gravity.CENTER);
+        // 创建圆形悬浮球，使用自定义图标
+        android.widget.ImageView iv = new android.widget.ImageView(this);
+        floatingBall = iv;
 
-        // 使用 APP 图标作为圆形背景
         try {
-            android.graphics.drawable.Drawable icon = getPackageManager().getApplicationIcon(getPackageName());
-            if (icon != null) {
-                // 创建圆形裁剪的图标
-                android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888);
-                android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-                icon.setBounds(0, 0, size, size);
-                icon.draw(canvas);
+            // 从 drawable 资源加载自定义图标
+            Bitmap srcBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.floating_icon);
+            if (srcBitmap != null) {
+                // 缩放到目标尺寸
+                Bitmap scaledBitmap = Bitmap.createScaledBitmap(srcBitmap, size, size, true);
 
-                // 圆形裁剪
-                android.graphics.Bitmap roundBitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888);
-                android.graphics.Canvas roundCanvas = new android.graphics.Canvas(roundBitmap);
+                // 创建圆形裁剪的位图
+                Bitmap roundBitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas canvas = new android.graphics.Canvas(roundBitmap);
                 android.graphics.Paint paint = new android.graphics.Paint();
                 paint.setAntiAlias(true);
                 android.graphics.Path path = new android.graphics.Path();
                 path.addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW);
-                roundCanvas.clipPath(path);
-                roundCanvas.drawBitmap(bitmap, 0, 0, null);
+                canvas.clipPath(path);
+                canvas.drawBitmap(scaledBitmap, 0, 0, paint);
 
-                android.graphics.drawable.BitmapDrawable roundDrawable = new android.graphics.drawable.BitmapDrawable(getResources(), roundBitmap);
-                floatingBall.setBackground(roundDrawable);
+                BitmapDrawable drawable = new BitmapDrawable(getResources(), roundBitmap);
+                iv.setImageDrawable(drawable);
+            } else {
+                // 图标加载失败，使用绿色圆形作为兜底
+                GradientDrawable shape = new GradientDrawable();
+                shape.setShape(GradientDrawable.OVAL);
+                shape.setColor(0xDD6A9A7A);
+                iv.setBackground(shape);
             }
         } catch (Exception e) {
-            // 图标加载失败，使用绿色圆形作为兜底
-            android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
-            shape.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            GradientDrawable shape = new GradientDrawable();
+            shape.setShape(GradientDrawable.OVAL);
             shape.setColor(0xDD6A9A7A);
-            floatingBall.setBackground(shape);
+            iv.setBackground(shape);
         }
-        floatingBall.setText("");
+
+        // 设置初始透明度
+        applyAlpha();
 
         ballParams = new WindowManager.LayoutParams(
                 size,
@@ -159,8 +171,22 @@ public class FloatingService extends Service {
             }
         });
 
-        // 悬浮球拖动
+        // 悬浮球拖动（不吸附边缘）
         floatingBall.setOnTouchListener(new FloatingTouchListener(ballParams, windowManager, floatingBall));
+    }
+
+    // 设置透明度 (0-100)
+    public void setAlpha(int percent) {
+        currentAlpha = (int) (255 * (percent / 100f));
+        if (currentAlpha < 26) currentAlpha = 26;   // 最低 10%
+        if (currentAlpha > 255) currentAlpha = 255; // 最高 100%
+        applyAlpha();
+    }
+
+    private void applyAlpha() {
+        if (floatingBall != null) {
+            floatingBall.setAlpha(currentAlpha / 255f);
+        }
     }
 
     private View createActionPanel() {
@@ -171,8 +197,8 @@ public class FloatingService extends Service {
                 LinearLayout.LayoutParams.WRAP_CONTENT));
 
         // 圆角矩形背景
-        android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
-        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
         bg.setCornerRadius(dpToPx(12));
         bg.setColor(0xF02C2C2C);
         bg.setStroke(dpToPx(1), 0x33FFFFFF);
@@ -305,7 +331,7 @@ public class FloatingService extends Service {
         return null;
     }
 
-    // 触摸拖动监听器
+    // 触摸拖动监听器（不吸附边缘）
     private static class FloatingTouchListener implements View.OnTouchListener {
         private final WindowManager.LayoutParams params;
         private final WindowManager wm;
@@ -329,7 +355,7 @@ public class FloatingService extends Service {
                     initialTouchY = event.getRawY();
                     initialX = params.x;
                     initialY = params.y;
-                    return false; // 不消耗，让 onClick 也能触发
+                    return true; // 消耗 DOWN 事件，确保后续 MOVE/UP 能收到
                 case android.view.MotionEvent.ACTION_MOVE:
                     float deltaX = event.getRawX() - initialTouchX;
                     float deltaY = event.getRawY() - initialTouchY;
@@ -337,13 +363,13 @@ public class FloatingService extends Service {
                         params.x = initialX + (int) deltaX;
                         params.y = initialY + (int) deltaY;
                         wm.updateViewLayout(view, params);
-                        return true;
                     }
-                    return false;
+                    return true;
                 case android.view.MotionEvent.ACTION_UP:
+                    // 如果是点击（位移很小），触发 click
                     if (Math.abs(event.getRawX() - initialTouchX) < 5
                             && Math.abs(event.getRawY() - initialTouchY) < 5) {
-                        return false; // 点击事件
+                        view.performClick();
                     }
                     return true;
             }

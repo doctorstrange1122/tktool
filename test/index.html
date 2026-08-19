@@ -42,17 +42,39 @@
         }
         .card-title::before { content: ""; width: 4px; height: 16px; background: #8ba0b5; border-radius: 2px; }
 
-        /* 权限提示 — 蓝色系，提示性质 */
-        .permission-tip {
+        /* 悬浮窗控制面板 */
+        .float-control {
             background: #eaf0f6;
             border: 1px solid #c5d2de;
             border-radius: 10px;
-            padding: 10px 14px;
+            padding: 12px 14px;
             margin-bottom: 14px;
-            font-size: 13px;
-            color: #5a7a96;
-            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
+        .float-control-left { flex-shrink: 0; }
+        .float-control-right { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .float-toggle-btn {
+            padding: 10px 20px; font-size: 14px; font-weight: 600;
+            background: #6a9a7a; color: #fff;
+            border: none; border-radius: 20px; cursor: pointer;
+            white-space: nowrap;
+        }
+        .float-toggle-btn.active { background: #c0392b; }
+        .float-toggle-btn:active { transform: scale(0.96); }
+        .float-opacity-label { font-size: 12px; color: #5a7a96; white-space: nowrap; }
+        .float-opacity-slider {
+            flex: 1; -webkit-appearance: none; appearance: none;
+            height: 6px; border-radius: 3px;
+            background: #c5d2de; outline: none; cursor: pointer;
+        }
+        .float-opacity-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: #6a9a7a; cursor: pointer;
+        }
+        .float-opacity-value { font-size: 12px; color: #5a7a96; min-width: 30px; text-align: right; }
 
         /* 输入区 */
         .input-section { margin-bottom: 14px; }
@@ -244,8 +266,15 @@
         <div class="subtitle">粘贴淘口令，一键生成二维码</div>
     </div>
 
-    <div class="permission-tip">
-        🔔 为正常使用复制和跳转功能，请授予页面剪贴板访问权限
+    <div class="float-control">
+        <div class="float-control-left">
+            <button id="floatingBtn" class="float-toggle-btn" onclick="toggleFloating()">🔘 打开悬浮窗</button>
+        </div>
+        <div class="float-control-right">
+            <span class="float-opacity-label">透明度</span>
+            <input type="range" id="floatOpacitySlider" class="float-opacity-slider" min="20" max="100" value="80" oninput="setFloatingOpacity(this.value)">
+            <span class="float-opacity-value" id="floatOpacityValue">80%</span>
+        </div>
     </div>
 
     <div class="card">
@@ -295,11 +324,6 @@
     </div>
 
     <div class="footer">秒杀商品二维码生成工具</div>
-
-    <!-- 悬浮窗按钮（仅悬浮窗版 APK 可用） -->
-    <div style="text-align:center; padding:10px 0 20px;">
-        <button id="floatingBtn" onclick="toggleFloating()" style="background:#6a9a7a;color:#fff;border:none;padding:12px 28px;border-radius:24px;font-size:15px;cursor:pointer;">🔘 打开悬浮窗</button>
-    </div>
 </div>
 
     <!-- 扫码弹窗 -->
@@ -341,14 +365,22 @@
             }
         }
 
+        function setFloatingOpacity(val) {
+            document.getElementById('floatOpacityValue').textContent = val + '%';
+            if (isInApp && NativeBridge.setFloatingOpacity) {
+                NativeBridge.setFloatingOpacity(parseInt(val));
+            }
+        }
+
         function updateFloatingBtnState() {
             var btn = document.getElementById('floatingBtn');
+            if (!btn) return;
             if (isInApp && NativeBridge.isFloatingServiceActive && NativeBridge.isFloatingServiceActive()) {
                 btn.textContent = '🔘 关闭悬浮窗';
-                btn.style.background = '#c0392b';
+                btn.classList.add('active');
             } else {
                 btn.textContent = '🔘 打开悬浮窗';
-                btn.style.background = '#6a9a7a';
+                btn.classList.remove('active');
             }
         }
         setTimeout(updateFloatingBtnState, 2000);

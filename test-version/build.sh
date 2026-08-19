@@ -14,13 +14,13 @@ ZXING_URL="https://maven.aliyun.com/repository/public/com/google/zxing/core/${ZX
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SRC="$SCRIPT_DIR/src/main"
 OUT_DIR="$SCRIPT_DIR/build"
-KEYSTORE="$OUT_DIR/test.keystore"
-KEYSTORE_PASS="test123"
-KEY_ALIAS="test"
-KEY_PASS="test123"
+KEYSTORE="$OUT_DIR/test_v2.keystore"
+KEYSTORE_PASS="tktool2026"
+KEY_ALIAS="tktool_v2"
+KEY_PASS="tktool2026"
 
 echo "========================================"
-echo "  过肥（悬浮窗版）APK 构建"
+echo "  过肥工具 APK 构建"
 echo "  包名: com.tktool.test"
 echo "========================================"
 
@@ -52,24 +52,8 @@ rm -rf META-INF
 cd "$SCRIPT_DIR"
 echo "       ZXing classes: $(find "$OUT_DIR/zxing_classes" -name '*.class' | wc -l)"
 
-# 5. 编译 Java
-echo "[4/8] 编译 Java 源码..."
-javac -source 1.8 -target 1.8 \
-    -bootclasspath /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar \
-    -cp "$ANDROID_JAR:$ZXING_JAR" \
-    -d "$OUT_DIR/java_classes" \
-    "$SRC"/java/com/tktool/test/*.java
-echo "       编译完成"
-
-# 6. D8 转换 dex
-echo "[5/8] D8 转换 dex..."
-$BUILD_TOOLS/d8 --lib "$ANDROID_JAR" --output "$OUT_DIR" \
-    $(find "$OUT_DIR/java_classes" -name "*.class") \
-    $(find "$OUT_DIR/zxing_classes" -name "*.class")
-echo "       dex: $(ls -la "$OUT_DIR/classes.dex" | awk '{print $5}') bytes"
-
-# 7. aapt2 链接资源
-echo "[6/8] aapt2 链接资源..."
+# 5. aapt2 链接资源（先生成 R.java 供 javac 使用）
+echo "[4/8] aapt2 链接资源..."
 FLAT_FILES=$(ls "$OUT_DIR/compiled_res"/*.flat 2>/dev/null)
 if [ -n "$FLAT_FILES" ]; then
     $BUILD_TOOLS/aapt2 link -o "$OUT_DIR/base.apk" \
@@ -77,14 +61,40 @@ if [ -n "$FLAT_FILES" ]; then
         --manifest "$SRC/AndroidManifest.xml" \
         -A "$SRC/assets" \
         --auto-add-overlay \
+        --java "$OUT_DIR/gen" \
         $FLAT_FILES
 else
     $BUILD_TOOLS/aapt2 link -o "$OUT_DIR/base.apk" \
         -I "$ANDROID_JAR" \
         --manifest "$SRC/AndroidManifest.xml" \
         -A "$SRC/assets" \
-        --auto-add-overlay
+        --auto-add-overlay \
+        --java "$OUT_DIR/gen"
 fi
+mkdir -p "$OUT_DIR/gen"
+echo "       资源链接完成"
+
+# 6. 编译 Java
+echo "[5/8] 编译 Java 源码..."
+javac -source 1.8 -target 1.8 \
+    -bootclasspath /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar \
+    -cp "$ANDROID_JAR:$ZXING_JAR" \
+    -sourcepath "$OUT_DIR/gen" \
+    -d "$OUT_DIR/java_classes" \
+    "$SRC"/java/com/tktool/test/*.java "$OUT_DIR"/gen/com/tktool/test/R.java 2>/dev/null || \
+javac -source 1.8 -target 1.8 \
+    -bootclasspath /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar \
+    -cp "$ANDROID_JAR:$ZXING_JAR" \
+    -d "$OUT_DIR/java_classes" \
+    "$SRC"/java/com/tktool/test/*.java
+echo "       编译完成"
+
+# 7. D8 转换 dex
+echo "[6/8] D8 转换 dex..."
+$BUILD_TOOLS/d8 --lib "$ANDROID_JAR" --output "$OUT_DIR" \
+    $(find "$OUT_DIR/java_classes" -name "*.class") \
+    $(find "$OUT_DIR/zxing_classes" -name "*.class")
+echo "       dex: $(ls -la "$OUT_DIR/classes.dex" | awk '{print $5}') bytes"
 
 # 8. 打包签名
 echo "[7/8] 打包签名..."
@@ -99,7 +109,7 @@ if [ ! -f "$KEYSTORE" ]; then
         -alias "$KEY_ALIAS" \
         -keyalg RSA -keysize 2048 -validity 10000 \
         -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
-        -dname "CN=Test, OU=Test, O=TKTool, L=Beijing, ST=Beijing, C=CN"
+        -dname "CN=TKTool, OU=Dev, O=GuoFei, L=Shenzhen, ST=Guangdong, C=CN"
 fi
 
 $BUILD_TOOLS/apksigner sign \
@@ -107,7 +117,7 @@ $BUILD_TOOLS/apksigner sign \
     --ks-pass pass:"$KEYSTORE_PASS" \
     --ks-key-alias "$KEY_ALIAS" \
     --key-pass pass:"$KEY_PASS" \
-    --out tktool_test.apk \
+    --out guofei_tool.apk \
     aligned.apk
 
 cd "$SCRIPT_DIR"
@@ -115,6 +125,6 @@ cd "$SCRIPT_DIR"
 echo "[8/8] 构建完成!"
 echo ""
 echo "========================================"
-echo "  APK: $OUT_DIR/tktool_test.apk"
-echo "  大小: $(ls -la "$OUT_DIR/tktool_test.apk" | awk '{print $5}') bytes"
+echo "  APK: $OUT_DIR/guofei_tool.apk"
+echo "  大小: $(ls -la "$OUT_DIR/guofei_tool.apk" | awk '{print $5}') bytes"
 echo "========================================"

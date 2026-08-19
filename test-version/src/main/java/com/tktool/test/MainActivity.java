@@ -277,6 +277,20 @@ public class MainActivity extends Activity {
         public boolean isFloatingServiceActive() {
             return isFloatingServiceRunning();
         }
+
+        @JavascriptInterface
+        public void setFloatingOpacity(final int percent) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (isFloatingServiceRunning()) {
+                        Intent intent = new Intent(MainActivity.this, FloatingService.class);
+                        intent.putExtra("alpha", percent);
+                        startService(intent);
+                    }
+                }
+            });
+        }
     }
 
     private boolean isFloatingServiceRunning() {
