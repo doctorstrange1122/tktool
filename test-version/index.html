@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-title" content="秒杀二维码">
     <meta name="theme-color" content="#6a9a7a">
     <link rel="manifest" href="/tktool/manifest.json">
-    <title>秒杀商品过肥二维码生成</title>
+    <title>秒杀商品二维码生成</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body {
@@ -410,7 +410,9 @@
             (url) => `https://proxy.cors.sh/${url}`,
             (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
             (url) => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-            (url) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(url)}`,
+            (url) => `https://proxy.corsfix.com/?${url}`,
+            (url) => `https://api.cors.syrins.tech/?url=${encodeURIComponent(url)}`,
+            (url) => `https://api.cors.lol/?url=${encodeURIComponent(url)}`,
         ];
 
         // 从分享文本中提取短链
