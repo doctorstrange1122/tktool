@@ -375,24 +375,7 @@ public class MainActivity extends Activity {
         handleShareIntent(intent);
         if (intent.getBooleanExtra("read_clipboard", false)) {
             pendingClipboardRead = true;
-            // 延迟读取，确保系统剪贴板同步完成
-            webView.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    if (pendingClipboardRead && webView.getUrl() != null
-                            && webView.getUrl().contains("doctorstrange1122")) {
-                        pendingClipboardRead = false;
-                        readClipboardAndFill();
-                        // 读取剪贴板后滚动到顶部
-                        webView.postDelayed(new Runnable() {
-                            @Override
-                            public void run() {
-                                webView.evaluateJavascript("window.scrollTo(0, 0);", null);
-                            }
-                        }, 300);
-                    }
-                }
-            }, 800);
+            // 由 onResume 负责在 Activity 回到前台后读取剪贴板
         }
         // 处理滚动到顶部请求
         if (intent.getBooleanExtra("scroll_to_top", false)) {
@@ -408,6 +391,34 @@ public class MainActivity extends Activity {
                 // 页面还在加载中，标记待处理
                 pendingScrollToTop = true;
             }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Activity 完全回到前台后再读取剪贴板（Android 10+ 限制后台读取剪贴板）
+        if (pendingClipboardRead) {
+            webView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (pendingClipboardRead) {
+                        String currentUrl = webView.getUrl();
+                        if (currentUrl != null && currentUrl.contains("doctorstrange1122")) {
+                            // 页面已加载，直接读取剪贴板
+                            pendingClipboardRead = false;
+                            readClipboardAndFill();
+                            webView.postDelayed(new Runnable() {
+                                @Override
+                                public void run() {
+                                    webView.evaluateJavascript("window.scrollTo(0, 0);", null);
+                                }
+                            }, 300);
+                        }
+                        // 页面还没加载完，由 onPageFinished 处理
+                    }
+                }
+            }, 600);
         }
     }
 
@@ -437,14 +448,37 @@ public class MainActivity extends Activity {
     }
 
     private void readClipboardAndFill() {
+        readClipboardAndFill(0);
+    }
+
+    private void readClipboardAndFill(final int retryCount) {
         try {
             ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard == null || !clipboard.hasPrimaryClip()) {
+                // Android 10+ 有时剪贴板需要一点时间同步，重试一次
+                if (retryCount < 2) {
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            readClipboardAndFill(retryCount + 1);
+                        }
+                    }, 500);
+                    return;
+                }
                 Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
                 return;
             }
             ClipData clip = clipboard.getPrimaryClip();
             if (clip == null || clip.getItemCount() == 0) {
+                if (retryCount < 2) {
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            readClipboardAndFill(retryCount + 1);
+                        }
+                    }, 500);
+                    return;
+                }
                 Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -477,20 +511,44 @@ public class MainActivity extends Activity {
             }
 
             if (content == null || content.isEmpty()) {
+                if (retryCount < 2) {
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            readClipboardAndFill(retryCount + 1);
+                        }
+                    }, 500);
+                    return;
+                }
                 Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // 只填入输入框，不自动生成
+            // 延迟执行 JS，确保 DOM 已就绪
             final String escaped = content
                     .replace("\\", "\\\\")
                     .replace("'", "\\'")
                     .replace("\n", "\\n")
                     .replace("\r", "");
-            webView.evaluateJavascript(
-                "document.getElementById('productLink').value = '" + escaped + "';", null);
+            webView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    webView.evaluateJavascript(
+                        "var el = document.getElementById('productLink');" +
+                        "if (el) { el.value = '" + escaped + "'; el.dispatchEvent(new Event('input')); }", null);
+                }
+            }, 200);
             Toast.makeText(this, "已粘贴到输入框", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
+            if (retryCount < 2) {
+                webView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        readClipboardAndFill(retryCount + 1);
+                    }
+                }, 500);
+                return;
+            }
             Toast.makeText(this, "读取失败", Toast.LENGTH_SHORT).show();
         }
     }
