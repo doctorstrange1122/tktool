@@ -203,7 +203,7 @@ public class FloatingService extends Service {
         bg.setShape(GradientDrawable.RECTANGLE);
         bg.setCornerRadius(dpToPx(14));
         bg.setColor(0xF02C2C2C);
-        bg.setStroke(dpToPx(1), 0x33FFFFFF);
+        bg.setStroke(dpToPx(1), 0x66FFFFFF);
         panel.setBackground(bg);
         panel.setElevation(dpToPx(10));
 
@@ -215,10 +215,14 @@ public class FloatingService extends Service {
         int pad = dpToPx(4);
         panel.setPadding(pad, pad, pad, pad);
 
+        // 统一按钮颜色
+        int btnBg = 0xFF3A4A5A;
+        int btnPressed = 0xFF2A3A4A;
+
         // === 第1行：读取剪贴板 | 扫码输入 ===
         LinearLayout row1 = createGridRow();
         row1.addView(createPanelItem("读取剪贴板", 0xFFFFFFFF, 10,
-                0xFF3D5A80, 0xFF2A4A6B, new View.OnClickListener() {
+                btnBg, btnPressed, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 readClipboardAndOpen();
@@ -227,7 +231,7 @@ public class FloatingService extends Service {
         }));
         row1.addView(createGridDivider(dpToPx(8)));
         row1.addView(createPanelItem("扫码输入", 0xFFFFFFFF, 10,
-                0xFF5C4D3D, 0xFF4A3D2E, new View.OnClickListener() {
+                btnBg, btnPressed, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, ScanActivity.class);
@@ -238,13 +242,12 @@ public class FloatingService extends Service {
         }));
         panel.addView(row1);
 
-        // 行间间距
         panel.addView(createRowGap(dpToPx(3)));
 
-        // === 第2行：打开工具（居中，主操作，高亮底色） ===
+        // === 第2行：打开工具（居中，主操作） ===
         LinearLayout row2 = createGridRow();
         row2.addView(createPanelItem("打开工具", 0xFFFFFFFF, 12,
-                0xFF3A6B5C, 0xFF2A5246, new View.OnClickListener() {
+                btnBg, btnPressed, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(FloatingService.this, MainActivity.class);
@@ -261,7 +264,7 @@ public class FloatingService extends Service {
         // === 第3行：收起面板 | 关闭悬浮窗 ===
         LinearLayout row3 = createGridRow();
         row3.addView(createPanelItem("收起面板", 0xFFCCCCCC, 10,
-                0xFF444444, 0xFF333333, new View.OnClickListener() {
+                btnBg, btnPressed, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 hideActionPanel();
@@ -269,7 +272,7 @@ public class FloatingService extends Service {
         }));
         row3.addView(createGridDivider(dpToPx(8)));
         row3.addView(createPanelItem("关闭悬浮窗", 0xFFFFFFFF, 10,
-                0xFF8B2D2D, 0xFF6B1F1F, new View.OnClickListener() {
+                btnBg, btnPressed, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 hideActionPanel();
@@ -299,18 +302,20 @@ public class FloatingService extends Service {
         tv.setGravity(Gravity.CENTER);
         tv.setSingleLine(true); // 防止文字换行
         tv.setPadding(dpToPx(4), dpToPx(10), dpToPx(4), dpToPx(10));
-        // 按钮样式底图：圆角 + 按压变色
+        // 按钮样式底图：圆角 + 清晰边框 + 按压变色
         android.graphics.drawable.StateListDrawable itemBg = new android.graphics.drawable.StateListDrawable();
         // 按压状态
         GradientDrawable pressedDrawable = new GradientDrawable();
         pressedDrawable.setShape(GradientDrawable.RECTANGLE);
         pressedDrawable.setCornerRadius(dpToPx(8));
         pressedDrawable.setColor(pressedColor);
+        pressedDrawable.setStroke(dpToPx(1), 0x88FFFFFF);
         // 默认状态
         GradientDrawable normalDrawable = new GradientDrawable();
         normalDrawable.setShape(GradientDrawable.RECTANGLE);
         normalDrawable.setCornerRadius(dpToPx(8));
         normalDrawable.setColor(bgColor);
+        normalDrawable.setStroke(dpToPx(1), 0x88FFFFFF);
         itemBg.addState(new int[]{android.R.attr.state_pressed}, pressedDrawable);
         itemBg.addState(new int[]{}, normalDrawable);
         tv.setBackground(itemBg);
@@ -334,7 +339,7 @@ public class FloatingService extends Service {
     // 行内竖直分隔线
     private View createGridDivider(int height) {
         View divider = new View(this);
-        divider.setBackgroundColor(0x1AFFFFFF);
+        divider.setBackgroundColor(0x44FFFFFF);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 dpToPx(1), height);
         lp.gravity = Gravity.CENTER_VERTICAL;
