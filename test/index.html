@@ -831,10 +831,62 @@
             }
         }
 
-        // 跳转到淘宝APP（不兜底打开网页版）
+        // 跳转到淘宝APP（兼容 Android / iOS / 鸿蒙系统）
         function openTaobaoApp(url) {
+            // tbopen:// 是淘宝官方 Deep Link，鸿蒙系统兼容性最好
+            const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
+            // taobao:// 作为备用 scheme
             const taobaoScheme = `taobao://${url.replace('https://', '')}`;
-            window.location.href = taobaoScheme;
+
+            let appOpened = false;
+            const visibilityHandler = function() {
+                if (document.hidden) { appOpened = true; }
+            };
+            document.addEventListener('visibilitychange', visibilityHandler);
+
+            // 尝试通过 scheme 唤起 APP（APK中由 Java 拦截，浏览器中由系统处理）
+            function tryScheme(schemeUrl) {
+                if (window.NativeBridge || (window.Android && typeof window.Android !== 'undefined')) {
+                    // APK 环境：Java shouldOverrideUrlLoading 会拦截 scheme
+                    window.location.href = schemeUrl;
+                } else {
+                    // 浏览器环境：用隐藏 iframe 避免页面导航错误
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = schemeUrl;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() {
+                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    }, 3000);
+                }
+            }
+
+            // 第一优先：tbopen://（鸿蒙兼容性最好）
+            tryScheme(tbopenUrl);
+
+            // 1秒后未打开则尝试 taobao://
+            setTimeout(function() {
+                if (appOpened) {
+                    document.removeEventListener('visibilitychange', visibilityHandler);
+                    return;
+                }
+                tryScheme(taobaoScheme);
+
+                // 再过1.2秒仍未打开则兜底打开 https 链接
+                setTimeout(function() {
+                    if (appOpened) {
+                        document.removeEventListener('visibilitychange', visibilityHandler);
+                        return;
+                    }
+                    // 兜底：通过 NativeBridge 打开外部浏览器，或直接跳转 https
+                    if (window.NativeBridge && typeof NativeBridge.openExternal === 'function') {
+                        NativeBridge.openExternal(url);
+                    } else {
+                        window.location.href = url;
+                    }
+                    document.removeEventListener('visibilitychange', visibilityHandler);
+                }, 1200);
+            }, 1000);
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
