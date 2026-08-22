@@ -267,22 +267,6 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void openExternal(final String url) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        startActivity(intent);
-                    } catch (Exception e) {
-                        Toast.makeText(MainActivity.this, "无法打开链接", Toast.LENGTH_SHORT).show();
-                    }
-                }
-            });
-        }
-
-        @JavascriptInterface
         public void readClipboard() {
             runOnUiThread(new Runnable() {
                 @Override

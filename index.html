@@ -793,21 +793,6 @@
                     return;
                 }
                 tryScheme(taobaoScheme);
-
-                // 再过1.2秒仍未打开则兜底打开 https 链接
-                setTimeout(function() {
-                    if (appOpened) {
-                        document.removeEventListener('visibilitychange', visibilityHandler);
-                        return;
-                    }
-                    // 兜底：通过 NativeBridge 打开外部浏览器，或直接跳转 https
-                    if (window.NativeBridge && typeof NativeBridge.openExternal === 'function') {
-                        NativeBridge.openExternal(url);
-                    } else {
-                        window.location.href = url;
-                    }
-                    document.removeEventListener('visibilitychange', visibilityHandler);
-                }, 1200);
             }, 1000);
         }
 
