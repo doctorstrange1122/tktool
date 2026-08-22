@@ -1045,11 +1045,6 @@
                 const container = document.createElement('div');
                 container.className = 'qr-code-container';
 
-                // 创建复制成功提示
-                const contentInfo = document.createElement('div');
-                contentInfo.style.margin = '10px 0';
-                contentInfo.innerHTML = '<span class="copy-success">✓ 生成二维码内容已复制到剪贴板</span>';
-
                 // 长按保存提示
                 const saveTip = document.createElement('div');
                 saveTip.className = 'long-press-tip';
@@ -1104,7 +1099,6 @@
                     <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
                 `;
 
-                qrRight.appendChild(contentInfo);
                 qrRight.appendChild(saveTip);
                 qrRight.appendChild(actionButtons);
 
