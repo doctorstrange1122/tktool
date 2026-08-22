@@ -283,6 +283,16 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void readClipboard() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    readClipboardAndFill();
+                }
+            });
+        }
+
+        @JavascriptInterface
         public String toggleFloatingWindow() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (!android.provider.Settings.canDrawOverlays(MainActivity.this)) {

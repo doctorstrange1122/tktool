@@ -60,21 +60,18 @@
         }
         .input-section input:focus { outline: none; border-color: #8ba0b5; }
         .input-section input::placeholder { color: #b0bcc8; }
-        .input-row { display: flex; gap: 10px; align-items: center; }
+        .input-row { display: flex; gap: 6px; align-items: center; }
         .input-row input { flex: 1; }
-        .clear-button {
-            padding: 12px 16px; font-size: 14px; font-weight: 600;
-            background: #eef2f6; color: #7a8b9c;
-            border: none; border-radius: 10px; cursor: pointer;
+        .clear-button, .paste-button, .scan-button {
+            padding: 8px 10px; font-size: 12px; font-weight: 600;
+            border: none; border-radius: 8px; cursor: pointer;
             white-space: nowrap; flex-shrink: 0;
         }
+        .clear-button { background: #eef2f6; color: #7a8b9c; }
         .clear-button:active { background: #e0e6ec; }
-        .scan-button {
-            padding: 12px 16px; font-size: 14px; font-weight: 600;
-            background: #6a9a7a; color: #fff;
-            border: none; border-radius: 10px; cursor: pointer;
-            white-space: nowrap; flex-shrink: 0;
-        }
+        .paste-button { background: #d4e4f0; color: #4a7a9a; }
+        .paste-button:active { background: #c4d4e0; }
+        .scan-button { background: #6a9a7a; color: #fff; }
         .scan-button:active { background: #5a8a6a; }
 
         /* 扫码弹窗 */
@@ -265,6 +262,7 @@
             <div class="input-row">
                 <input type="text" id="productLink" placeholder="粘贴淘口令或分享文本" required>
                 <button class="scan-button" onclick="startScan()" title="扫码输入">📷 扫码</button>
+                <button class="paste-button" onclick="pasteFromClipboard()" title="粘贴剪贴板">📋 粘贴</button>
                 <button class="clear-button" onclick="clearInput()">清空</button>
             </div>
             <div class="tip-text">粘贴淘口令/分享文本或通过当面分享扫码，自动解析获取商品ID</div>
@@ -391,6 +389,38 @@
         function clearInput() {
             document.getElementById('productLink').value = '';
             document.getElementById('customText').value = '';
+        }
+
+        // 粘贴剪贴板内容到输入框
+        function pasteFromClipboard() {
+            const input = document.getElementById('productLink');
+            // APK 环境：调用原生读取剪贴板
+            if (typeof NativeBridge !== 'undefined' && NativeBridge.readClipboard) {
+                NativeBridge.readClipboard();
+                return;
+            }
+            // 浏览器环境：使用 Clipboard API
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(function(text) {
+                    if (text && text.trim()) {
+                        input.value = text.trim();
+                        input.dispatchEvent(new Event('input'));
+                    } else {
+                        alert('剪贴板为空');
+                    }
+                }).catch(function() {
+                    // 降级：尝试 execCommand
+                    input.focus();
+                    if (document.execCommand('paste')) {
+                        input.dispatchEvent(new Event('input'));
+                    } else {
+                        alert('请手动粘贴（长按输入框选择粘贴）');
+                    }
+                });
+            } else {
+                input.focus();
+                alert('请手动粘贴（长按输入框选择粘贴）');
+            }
         }
 
         // ====== 扫码功能（APK用原生拍照，浏览器用html5-qrcode浮窗） ======
