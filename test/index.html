@@ -100,19 +100,40 @@
         }
         .input-section input:focus { outline: none; border-color: #8ba0b5; }
         .input-section input::placeholder { color: #b0bcc8; }
-        .input-row { display: flex; gap: 6px; align-items: center; }
+        .input-row { display: flex; gap: 8px; align-items: stretch; }
         .input-row input { flex: 1; }
-        .clear-button, .paste-button, .scan-button {
-            padding: 8px 6px; font-size: 12px; font-weight: 600;
-            border: none; border-radius: 8px; cursor: pointer;
-            white-space: nowrap; flex-shrink: 0;
+        .action-btn-group {
+            display: flex;
+            flex-shrink: 0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
-        .clear-button { background: #eef2f6; color: #7a8b9c; }
-        .clear-button:active { background: #e0e6ec; }
-        .paste-button { background: #d4e4f0; color: #4a7a9a; }
-        .paste-button:active { background: #c4d4e0; }
+        .action-btn-group button {
+            padding: 0 14px;
+            height: 40px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            position: relative;
+        }
+        .action-btn-group button + button::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 25%;
+            bottom: 25%;
+            width: 1px;
+            background: rgba(255,255,255,0.25);
+        }
         .scan-button { background: #6a9a7a; color: #fff; }
         .scan-button:active { background: #5a8a6a; }
+        .paste-button { background: #7ba9c9; color: #fff; }
+        .paste-button:active { background: #6b99b9; }
+        .clear-button { background: #a0b0c0; color: #fff; }
+        .clear-button:active { background: #90a0b0; }
 
         /* 扫码弹窗 */
         .scan-modal {
@@ -296,9 +317,11 @@
             <label for="productLink">淘口令 / 分享文本</label>
             <div class="input-row">
                 <input type="text" id="productLink" placeholder="粘贴淘口令或分享文本" required>
-                <button class="scan-button" onclick="startScan()" title="扫码输入">扫码</button>
-                <button class="paste-button" onclick="pasteFromClipboard()" title="粘贴剪贴板">粘贴</button>
-                <button class="clear-button" onclick="clearInput()">清空</button>
+                <div class="action-btn-group">
+                    <button class="scan-button" onclick="startScan()" title="扫码输入">扫码</button>
+                    <button class="paste-button" onclick="pasteFromClipboard()" title="粘贴剪贴板">粘贴</button>
+                    <button class="clear-button" onclick="clearInput()">清空</button>
+                </div>
             </div>
             <div class="tip-text">粘贴淘口令/分享文本或通过当面分享扫码，自动解析获取商品ID</div>
         </div>
