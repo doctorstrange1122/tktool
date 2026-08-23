@@ -1,0 +1,466 @@
+package com.tktool.guofei;
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.PixelFormat;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.os.Build;
+import android.os.IBinder;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
+
+public class FloatingService extends Service {
+    private WindowManager windowManager;
+    private View floatingBall;
+    private View actionPanel;
+    private WindowManager.LayoutParams ballParams;
+    private WindowManager.LayoutParams panelParams;
+    private boolean panelShowing = false;
+    private int currentAlpha = 204; // 默认 80% (255 * 0.8)
+
+    private static final int NOTIFICATION_ID = 2001;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+        createNotificationChannel();
+        startForeground(NOTIFICATION_ID, createNotification());
+        createFloatingBall();
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.hasExtra("alpha")) {
+            setAlpha(intent.getIntExtra("alpha", 80));
+        }
+        return START_STICKY;
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    "floating_service",
+                    "悬浮窗服务",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setDescription("保持悬浮窗运行");
+            NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    private Notification createNotification() {
+        Intent intent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder = new Notification.Builder(this, "floating_service");
+        } else {
+            builder = new Notification.Builder(this);
+        }
+        return builder
+                .setContentTitle("过肥工具")
+                .setContentText("悬浮窗运行中，点击打开")
+                .setSmallIcon(android.R.drawable.ic_menu_share)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .build();
+    }
+
+    private void createFloatingBall() {
+        int size = dpToPx(52);
+
+        // 创建圆形悬浮球，使用自定义图标
+        android.widget.ImageView iv = new android.widget.ImageView(this);
+        floatingBall = iv;
+
+        try {
+            // 从 drawable 资源加载自定义图标
+            Bitmap srcBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.floating_icon);
+            if (srcBitmap != null) {
+                // 缩放到目标尺寸
+                Bitmap scaledBitmap = Bitmap.createScaledBitmap(srcBitmap, size, size, true);
+
+                // 创建圆形裁剪的位图
+                Bitmap roundBitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+                android.graphics.Canvas canvas = new android.graphics.Canvas(roundBitmap);
+                android.graphics.Paint paint = new android.graphics.Paint();
+                paint.setAntiAlias(true);
+                android.graphics.Path path = new android.graphics.Path();
+                path.addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW);
+                canvas.clipPath(path);
+                canvas.drawBitmap(scaledBitmap, 0, 0, paint);
+
+                BitmapDrawable drawable = new BitmapDrawable(getResources(), roundBitmap);
+                iv.setImageDrawable(drawable);
+            } else {
+                // 图标加载失败，使用绿色圆形作为兜底
+                GradientDrawable shape = new GradientDrawable();
+                shape.setShape(GradientDrawable.OVAL);
+                shape.setColor(0xDD6A9A7A);
+                iv.setBackground(shape);
+            }
+        } catch (Exception e) {
+            GradientDrawable shape = new GradientDrawable();
+            shape.setShape(GradientDrawable.OVAL);
+            shape.setColor(0xDD6A9A7A);
+            iv.setBackground(shape);
+        }
+
+        // 设置初始透明度
+        applyAlpha();
+
+        ballParams = new WindowManager.LayoutParams(
+                size,
+                size,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+        );
+        ballParams.gravity = Gravity.TOP | Gravity.START;
+        ballParams.x = 0;
+        ballParams.y = dpToPx(100);
+
+        // 创建操作面板
+        actionPanel = createActionPanel();
+
+        panelParams = new WindowManager.LayoutParams(
+                dpToPx(140),
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+        );
+        panelParams.gravity = Gravity.TOP | Gravity.START;
+
+        windowManager.addView(floatingBall, ballParams);
+
+        // 悬浮球点击事件
+        floatingBall.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (panelShowing) {
+                    hideActionPanel();
+                } else {
+                    showActionPanel();
+                }
+            }
+        });
+
+        // 悬浮球拖动（不吸附边缘）
+        floatingBall.setOnTouchListener(new FloatingTouchListener(ballParams, windowManager, floatingBall));
+    }
+
+    // 设置透明度 (0-100)
+    public void setAlpha(int percent) {
+        currentAlpha = (int) (255 * (percent / 100f));
+        if (currentAlpha < 26) currentAlpha = 26;   // 最低 10%
+        if (currentAlpha > 255) currentAlpha = 255; // 最高 100%
+        applyAlpha();
+    }
+
+    private void applyAlpha() {
+        float ratio = currentAlpha / 255f;
+        if (floatingBall != null) {
+            floatingBall.setAlpha(ratio);
+        }
+        // 面板透明度也跟随设置
+        if (actionPanel != null) {
+            actionPanel.setAlpha(ratio);
+        }
+    }
+
+    private View createActionPanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+
+        // 圆角矩形背景
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.RECTANGLE);
+        bg.setCornerRadius(dpToPx(14));
+        bg.setColor(0xF02C2C2C);
+        bg.setStroke(dpToPx(1), 0x66FFFFFF);
+        panel.setBackground(bg);
+        panel.setElevation(dpToPx(10));
+
+        // 裁剪子视图到圆角范围内
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            panel.setClipToOutline(true);
+        }
+
+        int pad = dpToPx(4);
+        panel.setPadding(pad, pad, pad, pad);
+
+        // 统一按钮颜色
+        int btnBg = 0xFF3A4A5A;
+        int btnPressed = 0xFF2A3A4A;
+
+        // === 第1行：读取剪贴板 | 扫码输入 ===
+        LinearLayout row1 = createGridRow();
+        row1.addView(createPanelItem("读取剪贴板", 0xFFFFFFFF, 10,
+                btnBg, btnPressed, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                readClipboardAndOpen();
+                hideActionPanel();
+            }
+        }));
+        row1.addView(createGridDivider(dpToPx(8)));
+        row1.addView(createPanelItem("扫码输入", 0xFFFFFFFF, 10,
+                btnBg, btnPressed, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(FloatingService.this, ScanActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                hideActionPanel();
+            }
+        }));
+        panel.addView(row1);
+
+        panel.addView(createRowGap(dpToPx(3)));
+
+        // === 第2行：打开工具（居中，主操作） ===
+        LinearLayout row2 = createGridRow();
+        row2.addView(createPanelItem("打开工具", 0xFFFFFFFF, 12,
+                btnBg, btnPressed, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(FloatingService.this, MainActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                intent.putExtra("scroll_to_top", true);
+                startActivity(intent);
+                hideActionPanel();
+            }
+        }));
+        panel.addView(row2);
+
+        panel.addView(createRowGap(dpToPx(3)));
+
+        // === 第3行：收起面板 | 关闭悬浮窗 ===
+        LinearLayout row3 = createGridRow();
+        row3.addView(createPanelItem("收起面板", 0xFFCCCCCC, 10,
+                btnBg, btnPressed, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideActionPanel();
+            }
+        }));
+        row3.addView(createGridDivider(dpToPx(8)));
+        row3.addView(createPanelItem("关闭悬浮窗", 0xFFFFFFFF, 10,
+                btnBg, btnPressed, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                hideActionPanel();
+                stopSelf();
+            }
+        }));
+        panel.addView(row3);
+
+        return panel;
+    }
+
+    private LinearLayout createGridRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        return row;
+    }
+
+    private TextView createPanelItem(String text, int textColor, float sizeSp,
+                                     int bgColor, int pressedColor, View.OnClickListener listener) {
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextSize(sizeSp);
+        tv.setTextColor(textColor);
+        tv.setGravity(Gravity.CENTER);
+        tv.setSingleLine(true); // 防止文字换行
+        tv.setPadding(dpToPx(4), dpToPx(10), dpToPx(4), dpToPx(10));
+        // 按钮样式底图：圆角 + 清晰边框 + 按压变色
+        android.graphics.drawable.StateListDrawable itemBg = new android.graphics.drawable.StateListDrawable();
+        // 按压状态
+        GradientDrawable pressedDrawable = new GradientDrawable();
+        pressedDrawable.setShape(GradientDrawable.RECTANGLE);
+        pressedDrawable.setCornerRadius(dpToPx(8));
+        pressedDrawable.setColor(pressedColor);
+        pressedDrawable.setStroke(dpToPx(1), 0x88FFFFFF);
+        // 默认状态
+        GradientDrawable normalDrawable = new GradientDrawable();
+        normalDrawable.setShape(GradientDrawable.RECTANGLE);
+        normalDrawable.setCornerRadius(dpToPx(8));
+        normalDrawable.setColor(bgColor);
+        normalDrawable.setStroke(dpToPx(1), 0x88FFFFFF);
+        itemBg.addState(new int[]{android.R.attr.state_pressed}, pressedDrawable);
+        itemBg.addState(new int[]{}, normalDrawable);
+        tv.setBackground(itemBg);
+        tv.setOnClickListener(listener);
+        tv.setLayoutParams(new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        return tv;
+    }
+
+    // 行间水平分隔线
+    private View createHDivider() {
+        View divider = new View(this);
+        divider.setBackgroundColor(0x1AFFFFFF);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(1));
+        divider.setLayoutParams(lp);
+        return divider;
+    }
+
+    // 行内竖直分隔线
+    private View createGridDivider(int height) {
+        View divider = new View(this);
+        divider.setBackgroundColor(0x44FFFFFF);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                dpToPx(1), height);
+        lp.gravity = Gravity.CENTER_VERTICAL;
+        divider.setLayoutParams(lp);
+        return divider;
+    }
+
+    // 行间间距
+    private View createRowGap(int height) {
+        View gap = new View(this);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, height);
+        gap.setLayoutParams(lp);
+        return gap;
+    }
+
+    private void showActionPanel() {
+        if (panelShowing) return;
+        try {
+            // 面板位置在悬浮球旁边
+            int[] location = new int[2];
+            floatingBall.getLocationOnScreen(location);
+            panelParams.x = location[0] + floatingBall.getWidth() + dpToPx(4);
+            panelParams.y = location[1];
+            windowManager.addView(actionPanel, panelParams);
+            panelShowing = true;
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    private void hideActionPanel() {
+        if (!panelShowing) return;
+        try {
+            windowManager.removeView(actionPanel);
+            panelShowing = false;
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    private void readClipboardAndOpen() {
+        try {
+            // Android 10+ 后台 Service 无法读剪贴板，改为通知 Activity 自己去读
+            Intent intent = new Intent(this, MainActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            intent.putExtra("read_clipboard", true);
+            intent.putExtra("scroll_to_top", true);
+            startActivity(intent);
+            Toast.makeText(this, "正在打开工具并读取剪贴板...", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "启动失败", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private int dpToPx(int dp) {
+        float density = getResources().getDisplayMetrics().density;
+        return (int) (dp * density + 0.5f);
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        hideActionPanel();
+        if (floatingBall != null) {
+            try {
+                windowManager.removeView(floatingBall);
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+
+    // 触摸拖动监听器（不吸附边缘）
+    private static class FloatingTouchListener implements View.OnTouchListener {
+        private final WindowManager.LayoutParams params;
+        private final WindowManager wm;
+        private final View view;
+        private float initialTouchX;
+        private float initialTouchY;
+        private int initialX;
+        private int initialY;
+
+        FloatingTouchListener(WindowManager.LayoutParams params, WindowManager wm, View view) {
+            this.params = params;
+            this.wm = wm;
+            this.view = view;
+        }
+
+        @Override
+        public boolean onTouch(View v, android.view.MotionEvent event) {
+            switch (event.getAction()) {
+                case android.view.MotionEvent.ACTION_DOWN:
+                    initialTouchX = event.getRawX();
+                    initialTouchY = event.getRawY();
+                    initialX = params.x;
+                    initialY = params.y;
+                    return true; // 消耗 DOWN 事件，确保后续 MOVE/UP 能收到
+                case android.view.MotionEvent.ACTION_MOVE:
+                    float deltaX = event.getRawX() - initialTouchX;
+                    float deltaY = event.getRawY() - initialTouchY;
+                    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                        params.x = initialX + (int) deltaX;
+                        params.y = initialY + (int) deltaY;
+                        wm.updateViewLayout(view, params);
+                    }
+                    return true;
+                case android.view.MotionEvent.ACTION_UP:
+                    // 如果是点击（位移很小），触发 click
+                    if (Math.abs(event.getRawX() - initialTouchX) < 5
+                            && Math.abs(event.getRawY() - initialTouchY) < 5) {
+                        view.performClick();
+                    }
+                    return true;
+            }
+            return false;
+        }
+    }
+}
