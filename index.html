@@ -780,10 +780,15 @@
 
         // 跳转到淘宝APP（兼容 Android / iOS / 鸿蒙系统）
         function openTaobaoApp(url) {
-            // tbopen:// 是淘宝官方 Deep Link，鸿蒙系统兼容性最好
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
+
+            // tbopen:// 是淘宝官方 Deep Link，鸿蒙/安卓兼容性好
             const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
-            // taobao:// 作为备用 scheme
+            // taobao:// scheme（iOS 主要认这个）
             const taobaoScheme = `taobao://${url.replace('https://', '')}`;
+            // 通用链接（Universal Link），iOS Safari 优先支持
+            const universalLink = `https://pages.tmall.com/tbopen/tbopen.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
 
             let appOpened = false;
             const visibilityHandler = function() {
@@ -791,13 +796,16 @@
             };
             document.addEventListener('visibilitychange', visibilityHandler);
 
-            // 尝试通过 scheme 唤起 APP（APK中由 Java 拦截，浏览器中由系统处理）
+            // 尝试唤起 APP
             function tryScheme(schemeUrl) {
-                if (window.NativeBridge || (window.Android && typeof window.Android !== 'undefined')) {
+                if (isAPK) {
                     // APK 环境：Java shouldOverrideUrlLoading 会拦截 scheme
                     window.location.href = schemeUrl;
+                } else if (isIOS) {
+                    // iOS Safari：必须用 window.location.href 直接跳转，iframe 会被拦截
+                    window.location.href = schemeUrl;
                 } else {
-                    // 浏览器环境：用隐藏 iframe 避免页面导航错误
+                    // 安卓浏览器：用隐藏 iframe 避免页面导航错误
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
                     iframe.src = schemeUrl;
@@ -808,17 +816,28 @@
                 }
             }
 
-            // 第一优先：tbopen://（鸿蒙兼容性最好）
-            tryScheme(tbopenUrl);
-
-            // 1秒后未打开则尝试 taobao://
-            setTimeout(function() {
-                if (appOpened) {
-                    document.removeEventListener('visibilitychange', visibilityHandler);
-                    return;
-                }
+            if (isIOS) {
+                // iOS：优先 taobao:// scheme，失败回落 Universal Link
                 tryScheme(taobaoScheme);
-            }, 1000);
+                setTimeout(function() {
+                    if (appOpened) {
+                        document.removeEventListener('visibilitychange', visibilityHandler);
+                        return;
+                    }
+                    // 回落 Universal Link
+                    window.location.href = universalLink;
+                }, 1500);
+            } else {
+                // 安卓/鸿蒙/APK：优先 tbopen://，失败回落 taobao://
+                tryScheme(tbopenUrl);
+                setTimeout(function() {
+                    if (appOpened) {
+                        document.removeEventListener('visibilitychange', visibilityHandler);
+                        return;
+                    }
+                    tryScheme(taobaoScheme);
+                }, 1000);
+            }
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
