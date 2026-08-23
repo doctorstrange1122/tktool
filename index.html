@@ -787,8 +787,6 @@
             const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
             // taobao:// scheme（iOS 主要认这个）
             const taobaoScheme = `taobao://${url.replace('https://', '')}`;
-            // 通用链接（Universal Link），iOS Safari 优先支持
-            const universalLink = `https://pages.tmall.com/tbopen/tbopen.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
 
             let appOpened = false;
             const visibilityHandler = function() {
@@ -817,16 +815,8 @@
             }
 
             if (isIOS) {
-                // iOS：优先 taobao:// scheme，失败回落 Universal Link
+                // iOS：用 taobao:// scheme 直接唤起
                 tryScheme(taobaoScheme);
-                setTimeout(function() {
-                    if (appOpened) {
-                        document.removeEventListener('visibilitychange', visibilityHandler);
-                        return;
-                    }
-                    // 回落 Universal Link
-                    window.location.href = universalLink;
-                }, 1500);
             } else {
                 // 安卓/鸿蒙/APK：优先 tbopen://，失败回落 taobao://
                 tryScheme(tbopenUrl);
