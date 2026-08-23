@@ -214,10 +214,16 @@ public class FloatingService extends Service {
         panel.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        // 背景透明
-        panel.setBackgroundColor(0x00000000);
-        int pad = dpToPx(4);
+        // 半透明深色背景
+        panel.setBackgroundColor(0xCC1a1a1a);
+        int pad = dpToPx(12);
         panel.setPadding(pad, pad, pad, pad);
+        // 圆角
+        GradientDrawable panelBg = new GradientDrawable();
+        panelBg.setShape(GradientDrawable.RECTANGLE);
+        panelBg.setCornerRadius(dpToPx(12));
+        panelBg.setColor(0xCC1a1a1a);
+        panel.setBackground(panelBg);
 
         // 低饱和度绿色（主色 #6a9a7a 降低饱和度）
         int btnColor = 0xFF7a93ac; // 低饱和蓝绿色，与主界面一致
@@ -316,8 +322,12 @@ public class FloatingService extends Service {
         panel.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        panel.setBackgroundColor(0x00000000); // 透明背景
-        int pad = dpToPx(4);
+        GradientDrawable panelBg = new GradientDrawable();
+        panelBg.setShape(GradientDrawable.RECTANGLE);
+        panelBg.setCornerRadius(dpToPx(12));
+        panelBg.setColor(0xCC1a1a1a);
+        panel.setBackground(panelBg);
+        int pad = dpToPx(12);
         panel.setPadding(pad, pad, pad, pad);
 
         int btnColor = 0xFF7a93ac; // 低饱和度颜色
@@ -485,14 +495,40 @@ public class FloatingService extends Service {
 
     private void showPanel(View panel) {
         try {
+            // 先测量面板尺寸
+            int widthSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            int heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            panel.measure(widthSpec, heightSpec);
+
             int[] location = new int[2];
             floatingBall.getLocationOnScreen(location);
-            panelParams.x = location[0] + floatingBall.getWidth() + dpToPx(4);
-            panelParams.y = location[1];
+
+            int panelWidth = panel.getMeasuredWidth();
+            int panelHeight = panel.getMeasuredHeight();
+
+            // 计算位置：默认在悬浮球右边
+            int x = location[0] + floatingBall.getWidth() + dpToPx(8);
+            int y = location[1];
+
+            // 如果右边超出屏幕，放到左边
+            int screenWidth = getResources().getDisplayMetrics().widthPixels;
+            if (x + panelWidth > screenWidth) {
+                x = location[0] - panelWidth - dpToPx(8);
+            }
+            // 如果底部超出屏幕，往上移
+            int screenHeight = getResources().getDisplayMetrics().heightPixels;
+            if (y + panelHeight > screenHeight) {
+                y = screenHeight - panelHeight - dpToPx(20);
+            }
+
+            panelParams.x = x;
+            panelParams.y = y;
+            panelParams.width = panelWidth;
+            panelParams.height = panelHeight;
             windowManager.addView(panel, panelParams);
             panelShowing = true;
         } catch (Exception e) {
-            // ignore
+            Toast.makeText(this, "面板显示失败: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -788,15 +824,18 @@ public class FloatingService extends Service {
         private final WindowManager.LayoutParams params;
         private final WindowManager wm;
         private final View view;
+        private final int touchSlop;
         private float initialTouchX;
         private float initialTouchY;
         private int initialX;
         private int initialY;
+        private boolean hasMoved = false;
 
         FloatingTouchListener(WindowManager.LayoutParams params, WindowManager wm, View view) {
             this.params = params;
             this.wm = wm;
             this.view = view;
+            this.touchSlop = (int) (20 * view.getResources().getDisplayMetrics().density);
         }
 
         @Override
@@ -807,19 +846,22 @@ public class FloatingService extends Service {
                     initialTouchY = event.getRawY();
                     initialX = params.x;
                     initialY = params.y;
+                    hasMoved = false;
                     return true;
                 case android.view.MotionEvent.ACTION_MOVE:
                     float deltaX = event.getRawX() - initialTouchX;
                     float deltaY = event.getRawY() - initialTouchY;
-                    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                    if (Math.abs(deltaX) > touchSlop / 2f || Math.abs(deltaY) > touchSlop / 2f) {
+                        hasMoved = true;
+                    }
+                    if (hasMoved) {
                         params.x = initialX + (int) deltaX;
                         params.y = initialY + (int) deltaY;
                         wm.updateViewLayout(view, params);
                     }
                     return true;
                 case android.view.MotionEvent.ACTION_UP:
-                    if (Math.abs(event.getRawX() - initialTouchX) < 5
-                            && Math.abs(event.getRawY() - initialTouchY) < 5) {
+                    if (!hasMoved) {
                         view.performClick();
                     }
                     return true;
