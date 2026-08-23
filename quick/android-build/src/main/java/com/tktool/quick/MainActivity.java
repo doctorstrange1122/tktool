@@ -2,11 +2,13 @@ package com.tktool.quick;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -39,11 +41,35 @@ public class MainActivity extends Activity {
 
     private boolean pendingClipboardRead = false;
 
+    // 快速生成模式（悬浮窗调用）
+    private boolean quickGenerateMode = false;
+    private String quickBtnKey;
+    private String quickClipboardText;
+    private ProgressDialog quickLoadingDialog;
+    private boolean quickFinished = false;
+    private SharedPreferences usageSp;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        usageSp = getSharedPreferences("usage_counts", MODE_PRIVATE);
+
+        // 检查是否为快速生成模式
+        Intent intent = getIntent();
+        if (intent.hasExtra("quick_btn_key") && intent.hasExtra("quick_clipboard")) {
+            quickGenerateMode = true;
+            quickBtnKey = intent.getStringExtra("quick_btn_key");
+            quickClipboardText = intent.getStringExtra("quick_clipboard");
+
+            // 显示loading
+            quickLoadingDialog = new ProgressDialog(this);
+            quickLoadingDialog.setMessage("正在生成...");
+            quickLoadingDialog.setCancelable(false);
+            quickLoadingDialog.show();
+        }
 
         webView = new WebView(this);
         setContentView(webView);
@@ -69,6 +95,16 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                // 快速生成模式
+                if (quickGenerateMode && url != null && url.contains("doctorstrange1122")) {
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (!quickFinished) callQuickGenerate();
+                        }
+                    }, 500);
+                    return;
+                }
                 // 页面加载完成后，处理待执行的剪贴板读取
                 if (pendingClipboardRead && url != null && url.contains("doctorstrange1122")) {
                     pendingClipboardRead = false;
@@ -301,6 +337,16 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void onQuickGenerateResult(final String resultJson) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    handleQuickGenerateResult(resultJson);
+                }
+            });
+        }
     }
 
     private boolean isFloatingServiceRunning() {
@@ -460,8 +506,134 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void callQuickGenerate() {
+        if (webView == null || quickFinished) return;
+
+        final String escaped = quickClipboardText.replace("\\", "\\\\")
+                .replace("'", "\\'").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "");
+
+        final String jsCode = "(function(){" +
+                "if (window.floatGenerate) {" +
+                "  window.floatGenerate('" + escaped + "', '" + quickBtnKey + "').then(function(r){" +
+                "    if (window.NativeBridge && window.NativeBridge.onQuickGenerateResult) " +
+                "window.NativeBridge.onQuickGenerateResult(r);" +
+                "  }).catch(function(e){" +
+                "    if (window.NativeBridge && window.NativeBridge.onQuickGenerateResult) " +
+                "window.NativeBridge.onQuickGenerateResult(JSON.stringify({success:false,error:e.message||'生成失败'}));" +
+                "  });" +
+                "} else {" +
+                "  if (window.NativeBridge && window.NativeBridge.onQuickGenerateResult) " +
+                "window.NativeBridge.onQuickGenerateResult(JSON.stringify({success:false,error:'页面未加载完成'}));" +
+                "}" +
+                "})()";
+
+        try {
+            webView.evaluateJavascript(jsCode, null);
+        } catch (Exception e) {
+            quickFinishWithError("调用失败");
+        }
+    }
+
+    private void handleQuickGenerateResult(String resultJson) {
+        if (quickFinished) return;
+        quickFinished = true;
+
+        try {
+            if (resultJson.contains("\"success\":true")) {
+                int linkStart = resultJson.indexOf("\"link\":\"") + 8;
+                int linkEnd = resultJson.indexOf("\"", linkStart);
+                String link = resultJson.substring(linkStart, linkEnd);
+                link = link.replace("\\/", "/");
+
+                if (quickLoadingDialog != null && quickLoadingDialog.isShowing()) {
+                    quickLoadingDialog.setMessage("生成成功，正在跳转...");
+                }
+
+                // 保存使用次数
+                saveQuickUsageCount(quickBtnKey);
+
+                // 跳转淘宝
+                openQuickTaobao(link);
+
+                // 延迟关闭
+                webView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        finish();
+                    }
+                }, 500);
+            } else {
+                String error = "生成失败";
+                int errStart = resultJson.indexOf("\"error\":\"");
+                if (errStart >= 0) {
+                    errStart += 9;
+                    int errEnd = resultJson.indexOf("\"", errStart);
+                    if (errEnd > errStart) error = resultJson.substring(errStart, errEnd);
+                }
+                quickFinishWithError(error);
+            }
+        } catch (Exception e) {
+            quickFinishWithError("解析结果失败");
+        }
+    }
+
+    private void saveQuickUsageCount(String key) {
+        try {
+            String today = new java.text.SimpleDateFormat("yyyy-M-d",
+                    java.util.Locale.getDefault()).format(new java.util.Date());
+            String savedDate = usageSp.getString("date", "");
+            SharedPreferences.Editor editor = usageSp.edit();
+            if (!today.equals(savedDate)) {
+                editor.putString("date", today);
+            }
+            int count = usageSp.getInt(key, 0) + 1;
+            editor.putInt(key, count);
+            editor.apply();
+        } catch (Exception e) { /* ignore */ }
+    }
+
+    private void openQuickTaobao(String url) {
+        try {
+            String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
+            intent.setPackage("com.taobao.taobao");
+            startActivity(intent);
+        } catch (Exception e1) {
+            try {
+                String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
+                startActivity(intent);
+            } catch (Exception e2) {
+                try {
+                    String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                            Uri.encode(url);
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+                    startActivity(intent);
+                } catch (Exception e3) {
+                    Toast.makeText(this, "跳转失败，请检查是否安装淘宝", Toast.LENGTH_SHORT).show();
+                }
+            }
+        }
+    }
+
+    private void quickFinishWithError(String error) {
+        if (quickLoadingDialog != null && quickLoadingDialog.isShowing()) {
+            quickLoadingDialog.dismiss();
+        }
+        Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
+        quickFinished = true;
+        // 错误时不自动关闭，让用户看到错误，也可以手动使用
+        quickGenerateMode = false;
+    }
+
     @Override
     public void onBackPressed() {
+        if (quickGenerateMode) {
+            // 快速生成模式下按返回直接关闭
+            finish();
+            return;
+        }
         if (webView.canGoBack()) {
             webView.goBack();
         } else {

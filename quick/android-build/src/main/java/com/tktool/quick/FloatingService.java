@@ -516,11 +516,11 @@ public class FloatingService extends Service {
 
         hidePanel();
 
-        // 启动FloatGenerateActivity执行生成
-        Intent intent = new Intent(this, FloatGenerateActivity.class);
+        // 启动MainActivity的快速生成模式
+        Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.putExtra("btn_key", btnKey);
-        intent.putExtra("clipboard", clipboardText);
+        intent.putExtra("quick_btn_key", btnKey);
+        intent.putExtra("quick_clipboard", clipboardText);
         startActivity(intent);
     }
 
