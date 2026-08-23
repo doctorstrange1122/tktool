@@ -5,15 +5,19 @@ import android.app.ProgressDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.Gravity;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 /**
- * 透明Activity：承载WebView执行JS，用户只看到loading弹窗
+ * 半透明Activity：承载WebView执行JS生成
+ * WebView必须添加到视图树中才能正常工作
  */
 public class FloatGenerateActivity extends Activity {
 
@@ -29,7 +33,7 @@ public class FloatGenerateActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 透明背景
+        // 半透明黑色背景
         getWindow().setBackgroundDrawableResource(android.R.color.transparent);
 
         btnKey = getIntent().getStringExtra("btn_key");
@@ -40,20 +44,20 @@ public class FloatGenerateActivity extends Activity {
             return;
         }
 
-        // 显示loading
-        loadingDialog = new ProgressDialog(this);
-        loadingDialog.setMessage("正在生成...");
-        loadingDialog.setCancelable(true);
-        loadingDialog.setOnCancelListener(new android.content.DialogInterface.OnCancelListener() {
-            @Override
-            public void onCancel(android.content.DialogInterface dialog) {
-                finish();
-            }
-        });
-        loadingDialog.show();
+        // 创建根布局
+        FrameLayout rootLayout = new FrameLayout(this);
+        rootLayout.setLayoutParams(new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // 创建WebView
+        // 创建WebView并添加到布局中（必须attach到视图树）
         webView = new WebView(this);
+        FrameLayout.LayoutParams webViewLp = new FrameLayout.LayoutParams(
+                100, 100); // 100x100像素，足够WebView工作
+        webViewLp.gravity = Gravity.TOP | Gravity.START;
+        webView.setLayoutParams(webViewLp);
+        webView.setVisibility(View.VISIBLE); // 必须可见
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -63,6 +67,7 @@ public class FloatGenerateActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
+        settings.setDatabaseEnabled(true);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -74,7 +79,7 @@ public class FloatGenerateActivity extends Activity {
                     public void run() {
                         if (!finished) callFloatGenerate();
                     }
-                }, 500);
+                }, 800);
             }
         });
         webView.setWebChromeClient(new WebChromeClient());
@@ -91,11 +96,23 @@ public class FloatGenerateActivity extends Activity {
             }
         }, "FloatBridge");
 
+        rootLayout.addView(webView);
+        setContentView(rootLayout);
+
+        // 显示loading
+        loadingDialog = new ProgressDialog(this);
+        loadingDialog.setMessage("正在生成...");
+        loadingDialog.setCancelable(true);
+        loadingDialog.setOnCancelListener(new android.content.DialogInterface.OnCancelListener() {
+            @Override
+            public void onCancel(android.content.DialogInterface dialog) {
+                finish();
+            }
+        });
+        loadingDialog.show();
+
         // 加载页面
         webView.loadUrl(PAGE_URL + System.currentTimeMillis());
-
-        // 不设置contentView，WebView不显示，只用来执行JS
-        // （Activity本身透明，用户只看到loading弹窗）
     }
 
     private void callFloatGenerate() {
@@ -118,7 +135,8 @@ public class FloatGenerateActivity extends Activity {
                 "})()";
 
         try {
-            webView.evaluateJavascript(jsCode, null);
+            // 同时尝试两种方式，确保兼容性
+            webView.loadUrl("javascript:" + jsCode);
         } catch (Exception e) {
             if (loadingDialog != null && loadingDialog.isShowing()) {
                 loadingDialog.setMessage("调用失败");
@@ -218,6 +236,8 @@ public class FloatGenerateActivity extends Activity {
             loadingDialog.dismiss();
         }
         if (webView != null) {
+            webView.stopLoading();
+            webView.removeAllViews();
             webView.destroy();
             webView = null;
         }

@@ -15,7 +15,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -23,15 +22,9 @@ import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,17 +37,12 @@ public class FloatingService extends Service {
     private View floatingBall;
     private View primaryPanel;
     private View secondaryPanel;
-    private View loadingPanel;
-    private WebView hiddenWebView;
     private WindowManager.LayoutParams ballParams;
     private WindowManager.LayoutParams panelParams;
-    private WindowManager.LayoutParams webViewParams;
     private boolean panelShowing = false;
     private int panelLevel = 0; // 0=无, 1=一级, 2=二级
-    private boolean generating = false;
 
     private static final int NOTIFICATION_ID = 2002;
-    private static final String PAGE_URL = "https://doctorstrange1122.github.io/tktool/quick/?v=";
 
     private static final String[][] BTN_CONFIGS = {
         {"500ss", "阳光",  "500☀☀"},
@@ -165,7 +153,6 @@ public class FloatingService extends Service {
         floatingBall.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (generating) return;
                 if (panelShowing) hidePanel();
                 else showPrimaryPanel();
             }
@@ -511,122 +498,6 @@ public class FloatingService extends Service {
         panelLevel = 0;
     }
 
-    // ====== Loading面板 ======
-    private View createLoadingPanel(String text) {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setGravity(Gravity.CENTER);
-        panel.setLayoutParams(new LinearLayout.LayoutParams(
-                dpToPx(160), LinearLayout.LayoutParams.WRAP_CONTENT));
-
-        GradientDrawable panelBg = new GradientDrawable();
-        panelBg.setShape(GradientDrawable.RECTANGLE);
-        panelBg.setCornerRadius(dpToPx(12));
-        panelBg.setColor(0xE6222222);
-        panel.setBackground(panelBg);
-
-        panel.setPadding(dpToPx(20), dpToPx(20), dpToPx(20), dpToPx(20));
-
-        ProgressBar progressBar = new ProgressBar(this);
-        progressBar.setIndeterminate(true);
-        LinearLayout.LayoutParams pbLp = new LinearLayout.LayoutParams(dpToPx(36), dpToPx(36));
-        pbLp.gravity = Gravity.CENTER;
-        panel.addView(progressBar, pbLp);
-
-        addSpacer(panel, 12);
-
-        TextView tv = new TextView(this);
-        tv.setText(text);
-        tv.setTextSize(14);
-        tv.setTextColor(0xFFFFFFFF);
-        tv.setGravity(Gravity.CENTER);
-        panel.addView(tv);
-
-        return panel;
-    }
-
-    private void showLoading(String text) {
-        hideLoading();
-        loadingPanel = createLoadingPanel(text);
-
-        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT);
-        lp.gravity = Gravity.CENTER;
-
-        try {
-            windowManager.addView(loadingPanel, lp);
-        } catch (Exception e) { /* ignore */ }
-    }
-
-    private void hideLoading() {
-        if (loadingPanel != null) {
-            try { windowManager.removeView(loadingPanel); } catch (Exception e) { /* ignore */ }
-            loadingPanel = null;
-        }
-    }
-
-    // ====== 隐藏WebView ======
-    private void ensureHiddenWebView() {
-        if (hiddenWebView != null) return;
-
-        hiddenWebView = new WebView(this);
-        WebSettings settings = hiddenWebView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-
-        hiddenWebView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-            }
-        });
-        hiddenWebView.setWebChromeClient(new WebChromeClient());
-
-        hiddenWebView.addJavascriptInterface(new Object() {
-            @JavascriptInterface
-            public void onGenerateResult(final String resultJson) {
-                mainHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        handleGenerateResult(resultJson);
-                    }
-                });
-            }
-        }, "FloatBridge");
-
-        // 添加为1x1像素的悬浮窗，放在屏幕外不可见
-        webViewParams = new WindowManager.LayoutParams(
-                1, 1,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-                PixelFormat.TRANSLUCENT);
-        webViewParams.gravity = Gravity.TOP | Gravity.START;
-        webViewParams.x = -100;
-        webViewParams.y = -100;
-
-        try {
-            windowManager.addView(hiddenWebView, webViewParams);
-        } catch (Exception e) {
-            Toast.makeText(this, "WebView初始化失败", Toast.LENGTH_SHORT).show();
-        }
-    }
-
     // ====== 扫码 ======
     private void startScan() {
         Intent intent = new Intent(this, MainActivity.class);
@@ -636,9 +507,6 @@ public class FloatingService extends Service {
     }
 
     // ====== 肥料按钮点击 ======
-    private String pendingBtnKey;
-    private String pendingClipboard;
-
     private void handleFertilizerClick(final String btnKey) {
         String clipboardText = readClipboardText();
         if (clipboardText == null || clipboardText.trim().isEmpty()) {
@@ -647,144 +515,13 @@ public class FloatingService extends Service {
         }
 
         hidePanel();
-        generating = true;
-        showLoading("正在生成...");
 
-        pendingBtnKey = btnKey;
-        pendingClipboard = clipboardText;
-
-        // 确保WebView存在并加载页面
-        ensureHiddenWebView();
-
-        hiddenWebView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                // 延迟执行，确保JS完全初始化
-                mainHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        callFloatGenerate(pendingClipboard, pendingBtnKey);
-                    }
-                }, 500);
-            }
-        });
-
-        // 加载页面
-        hiddenWebView.loadUrl(PAGE_URL + System.currentTimeMillis());
-    }
-
-    private void callFloatGenerate(String clipboardText, String btnKey) {
-        if (hiddenWebView == null) {
-            hideLoading();
-            generating = false;
-            return;
-        }
-
-        final String escaped = clipboardText.replace("\\", "\\\\")
-                .replace("'", "\\'").replace("\"", "\\\"")
-                .replace("\n", "\\n").replace("\r", "");
-
-        final String jsCode = "(function(){" +
-                "if (window.floatGenerate) {" +
-                "  window.floatGenerate('" + escaped + "', '" + btnKey + "').then(function(r){" +
-                "    if (window.FloatBridge) window.FloatBridge.onGenerateResult(r);" +
-                "  }).catch(function(e){" +
-                "    if (window.FloatBridge) window.FloatBridge.onGenerateResult(JSON.stringify({success:false,error:e.message||'生成失败'}));" +
-                "  });" +
-                "} else {" +
-                "  if (window.FloatBridge) window.FloatBridge.onGenerateResult(JSON.stringify({success:false,error:'页面未加载完成'}));" +
-                "}" +
-                "})()";
-
-        try {
-            hiddenWebView.evaluateJavascript(jsCode, null);
-        } catch (Exception e) {
-            hideLoading();
-            generating = false;
-            Toast.makeText(this, "调用失败", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void handleGenerateResult(String resultJson) {
-        hideLoading();
-        generating = false;
-
-        try {
-            if (resultJson.contains("\"success\":true")) {
-                int linkStart = resultJson.indexOf("\"link\":\"") + 8;
-                int linkEnd = resultJson.indexOf("\"", linkStart);
-                String link = resultJson.substring(linkStart, linkEnd);
-                link = link.replace("\\/", "/");
-
-                // 保存使用次数
-                saveUsageCount(pendingBtnKey);
-                // 更新角标
-                updateBadgeFromSp(pendingBtnKey);
-
-                // 跳转淘宝
-                openTaobao(link);
-            } else {
-                String error = "生成失败";
-                int errStart = resultJson.indexOf("\"error\":\"");
-                if (errStart >= 0) {
-                    errStart += 9;
-                    int errEnd = resultJson.indexOf("\"", errStart);
-                    if (errEnd > errStart) error = resultJson.substring(errStart, errEnd);
-                }
-                Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
-            }
-        } catch (Exception e) {
-            Toast.makeText(this, "解析结果失败", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void updateBadgeFromSp(String key) {
-        SharedPreferences sp = getSharedPreferences("usage_counts", MODE_PRIVATE);
-        int count = sp.getInt(key, 0);
-        updateBadgeCount(key, count);
-    }
-
-    private void saveUsageCount(String key) {
-        try {
-            SharedPreferences sp = getSharedPreferences("usage_counts", MODE_PRIVATE);
-            String today = new SimpleDateFormat("yyyy-M-d", Locale.getDefault()).format(new Date());
-            String savedDate = sp.getString("date", "");
-            SharedPreferences.Editor editor = sp.edit();
-            if (!today.equals(savedDate)) {
-                editor.putString("date", today);
-            }
-            int count = sp.getInt(key, 0) + 1;
-            editor.putInt(key, count);
-            editor.apply();
-        } catch (Exception e) { /* ignore */ }
-    }
-
-    private void openTaobao(String url) {
-        try {
-            String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
-            intent.setPackage("com.taobao.taobao");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        } catch (Exception e1) {
-            try {
-                String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-            } catch (Exception e2) {
-                try {
-                    String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
-                            Uri.encode(url);
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(intent);
-                } catch (Exception e3) {
-                    Toast.makeText(this, "跳转失败，请检查是否安装淘宝", Toast.LENGTH_SHORT).show();
-                }
-            }
-        }
+        // 启动FloatGenerateActivity执行生成
+        Intent intent = new Intent(this, FloatGenerateActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.putExtra("btn_key", btnKey);
+        intent.putExtra("clipboard", clipboardText);
+        startActivity(intent);
     }
 
     private String readClipboardText() {
@@ -807,12 +544,6 @@ public class FloatingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         hidePanel();
-        hideLoading();
-        if (hiddenWebView != null) {
-            try { windowManager.removeView(hiddenWebView); } catch (Exception e) { /* ignore */ }
-            hiddenWebView.destroy();
-            hiddenWebView = null;
-        }
         if (floatingBall != null) {
             try { windowManager.removeView(floatingBall); } catch (Exception e) { /* ignore */ }
         }
