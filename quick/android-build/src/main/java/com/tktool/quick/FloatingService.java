@@ -514,14 +514,14 @@ public class FloatingService extends Service {
             return;
         }
 
-        hidePanel();
-
-        // 启动MainActivity的快速生成模式
+        // 先启动Activity，再隐藏面板（和扫码输入同样的顺序）
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         intent.putExtra("quick_btn_key", btnKey);
         intent.putExtra("quick_clipboard", clipboardText);
         startActivity(intent);
+
+        hidePanel();
     }
 
     private String readClipboardText() {
