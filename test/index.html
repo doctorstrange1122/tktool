@@ -912,9 +912,15 @@
         function openTaobaoApp(url) {
             const ua = navigator.userAgent;
             const isIOS = /iPhone|iPad|iPod/i.test(ua);
-            // 鸿蒙系统 UA 包含 HarmonyOS 或 OpenHarmony
-            const isHarmonyOS = /HarmonyOS|OpenHarmony|HMSCore/i.test(ua);
             const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
+
+            // 鸿蒙检测：APK环境优先用NativeBridge系统属性检测（卓易通也能识别），浏览器用UA检测
+            let isHarmonyOS = false;
+            if (isAPK && window.NativeBridge && typeof window.NativeBridge.isHarmonyOS === 'function') {
+                isHarmonyOS = window.NativeBridge.isHarmonyOS();
+            } else {
+                isHarmonyOS = /HarmonyOS|OpenHarmony|HMSCore/i.test(ua);
+            }
 
             // tbopen:// + ali.open.nav（鸿蒙上当前页弹出效果好，但安卓上会先回首页）
             const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;

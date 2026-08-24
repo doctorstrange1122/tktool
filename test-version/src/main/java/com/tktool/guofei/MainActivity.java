@@ -268,6 +268,27 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean isHarmonyOS() {
+            // 通过系统属性检测是否为鸿蒙系统（包括卓易通等兼容层）
+            try {
+                Class<?> clazz = Class.forName("android.os.SystemProperties");
+                java.lang.reflect.Method getMethod = clazz.getMethod("get", String.class);
+                String harmonyVersion = (String) getMethod.invoke(null, "ro.build.version.harmonyos");
+                if (harmonyVersion != null && !harmonyVersion.isEmpty()) {
+                    return true;
+                }
+                // 兜底：检测鸿蒙相关标识
+                String osName = (String) getMethod.invoke(null, "ro.product.system.name");
+                if (osName != null && osName.toLowerCase().contains("harmony")) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // 忽略异常，返回false
+            }
+            return false;
+        }
+
+        @JavascriptInterface
         public void readClipboard() {
             runOnUiThread(new Runnable() {
                 @Override
