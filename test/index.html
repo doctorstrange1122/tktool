@@ -910,6 +910,16 @@
 
         // 跳转到淘宝APP（兼容 Android / iOS / 鸿蒙系统）
         function openTaobaoApp(url) {
+            // APK环境：直接调用NativeBridge，由Java原生Intent唤起，避免弹出选择框
+            if (window.NativeBridge && typeof window.NativeBridge.openTaobao === 'function') {
+                window.NativeBridge.openTaobao(url);
+                return;
+            }
+            if (window.Android && typeof window.Android !== 'undefined' && window.Android.openTaobao) {
+                window.Android.openTaobao(url);
+                return;
+            }
+
             // tbopen:// 是淘宝官方 Deep Link，鸿蒙系统兼容性最好
             const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
             // taobao:// 作为备用 scheme
@@ -923,19 +933,14 @@
 
             // 尝试通过 scheme 唤起 APP（APK中由 Java 拦截，浏览器中由系统处理）
             function tryScheme(schemeUrl) {
-                if (window.NativeBridge || (window.Android && typeof window.Android !== 'undefined')) {
-                    // APK 环境：Java shouldOverrideUrlLoading 会拦截 scheme
-                    window.location.href = schemeUrl;
-                } else {
-                    // 浏览器环境：用隐藏 iframe 避免页面导航错误
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = schemeUrl;
-                    document.body.appendChild(iframe);
-                    setTimeout(function() {
-                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-                    }, 3000);
-                }
+                // 浏览器环境：用隐藏 iframe 避免页面导航错误
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.src = schemeUrl;
+                document.body.appendChild(iframe);
+                setTimeout(function() {
+                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                }, 3000);
             }
 
             // 第一优先：tbopen://（鸿蒙兼容性最好）
