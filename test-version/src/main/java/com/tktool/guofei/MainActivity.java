@@ -155,7 +155,8 @@ public class MainActivity extends Activity {
             }
         });
 
-        webView.loadUrl("file:///android_asset/index.html");
+        // 加载线上网页，实时更新，加时间戳防缓存
+        webView.loadUrl("https://doctorstrange1122.github.io/tktool/test/index.html?v=" + System.currentTimeMillis());
     }
 
     private void startFloatingService() {
