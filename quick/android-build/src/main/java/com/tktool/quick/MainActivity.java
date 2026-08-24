@@ -44,6 +44,8 @@ public class MainActivity extends Activity {
     private String quickBtnKey;
     private String quickClipboardText;
     private boolean quickFinished = false;
+    private boolean pageLoaded = false;
+    private Runnable quickTimeoutRunnable;
     private SharedPreferences usageSp;
 
     @Override
@@ -95,18 +97,19 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 if (url == null || !url.contains("doctorstrange1122")) return;
 
+                pageLoaded = true;
+
                 // 页面加载完，同步按钮配置到悬浮窗
                 syncButtonConfigsToFloating();
 
-                // 快速生成模式
-                if (quickGenerateMode) {
+                // 快速生成模式：页面加载完成后再执行
+                if (quickGenerateMode && !quickFinished) {
                     webView.postDelayed(new Runnable() {
                         @Override
                         public void run() {
                             if (!quickFinished) callQuickGenerate();
                         }
-                    }, 400);
-                    return;
+                    }, 300);
                 }
 
                 // 待粘贴剪贴板内容
@@ -505,14 +508,18 @@ public class MainActivity extends Activity {
         if (intent.hasExtra("quick_btn_key") && intent.hasExtra("quick_clipboard")) {
             quickGenerateMode = true;
             quickFinished = false;
+            cancelQuickTimeout();
             quickBtnKey = intent.getStringExtra("quick_btn_key");
             quickClipboardText = intent.getStringExtra("quick_clipboard");
-            webView.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    if (!quickFinished) callQuickGenerate();
-                }
-            }, 400);
+            // 如果页面已加载完成，直接调用生成；否则等 onPageFinished 触发
+            if (pageLoaded) {
+                webView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!quickFinished) callQuickGenerate();
+                    }
+                }, 200);
+            }
         }
     }
 
@@ -620,14 +627,33 @@ public class MainActivity extends Activity {
 
         try {
             webView.evaluateJavascript(jsCode, null);
+
+            // 设置超时保护：10秒未返回则提示超时（不关闭Activity）
+            quickTimeoutRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (!quickFinished) {
+                        quickFinishWithError("生成超时，请检查网络后重试");
+                    }
+                }
+            };
+            webView.postDelayed(quickTimeoutRunnable, 10000);
         } catch (Exception e) {
             quickFinishWithError("调用失败");
+        }
+    }
+
+    private void cancelQuickTimeout() {
+        if (quickTimeoutRunnable != null) {
+            webView.removeCallbacks(quickTimeoutRunnable);
+            quickTimeoutRunnable = null;
         }
     }
 
     private void handleQuickGenerateResult(String resultJson) {
         if (quickFinished) return;
         quickFinished = true;
+        cancelQuickTimeout();
 
         try {
             // 解析JSON结果
@@ -647,17 +673,18 @@ public class MainActivity extends Activity {
                 if (autoJump) {
                     // 自动跳转淘宝
                     openQuickTaobao(link);
-                    // 延迟关闭Activity
+                    // 延迟关闭Activity（仅自动跳转时才关闭）
                     webView.postDelayed(new Runnable() {
-                        @Override public void run() { finish(); }
-                    }, 600);
+                        @Override public void run() {
+                            quickGenerateMode = false;
+                        }
+                    }, 800);
                 } else {
-                    // 不跳转：滚动到结果区
+                    // 不跳转：滚动到结果区，保留页面
                     webView.evaluateJavascript(
                         "if (window.scrollToResult) window.scrollToResult();" +
-                        " else { var r = document.getElementById('resultSection'); if (r) r.scrollIntoView({behavior:'smooth'}); }",
+                        " else { var r = document.getElementById('resultArea'); if (r) r.scrollIntoView({behavior:'smooth'}); }",
                         null);
-                    // 快速生成模式结束，保留页面
                     quickGenerateMode = false;
                 }
             } else {
@@ -726,11 +753,6 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (quickGenerateMode) {
-            notifyFloatingGenerateDone();
-            finish();
-            return;
-        }
         if (webView.canGoBack()) {
             webView.goBack();
         } else {

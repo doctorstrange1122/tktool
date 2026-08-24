@@ -562,8 +562,19 @@ public class FloatingService extends Service {
         showPanel(secondaryPanel);
         refreshAllBadges();
 
-        // 同步：将剪贴板内容粘贴到主页面输入框
-        pasteClipboardToMainActivity();
+        // 同步打开主界面并粘贴剪贴板内容
+        openMainActivityAndPaste();
+    }
+
+    // 打开主界面并将剪贴板内容粘贴到输入框
+    private void openMainActivityAndPaste() {
+        String text = readClipboardText();
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (text != null && !text.trim().isEmpty()) {
+            intent.putExtra("paste_clipboard", text);
+        }
+        startActivity(intent);
     }
 
     private void showTertiaryPanel() {
@@ -684,7 +695,7 @@ public class FloatingService extends Service {
 
         // 启动MainActivity并执行快速生成
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         intent.putExtra("quick_btn_key", btnKey);
         intent.putExtra("quick_clipboard", clipboardText);
         startActivity(intent);
