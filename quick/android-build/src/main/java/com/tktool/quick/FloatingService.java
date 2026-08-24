@@ -566,14 +566,12 @@ public class FloatingService extends Service {
         openMainActivityAndPaste();
     }
 
-    // 打开主界面并将剪贴板内容粘贴到输入框
+    // 打开主界面并让其读取剪贴板粘贴到输入框
+    // （Android 10+ 后台服务无法访问剪贴板，必须由有焦点的Activity读取）
     private void openMainActivityAndPaste() {
-        String text = readClipboardText();
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        if (text != null && !text.trim().isEmpty()) {
-            intent.putExtra("paste_clipboard", text);
-        }
+        intent.putExtra("read_clipboard", true);
         startActivity(intent);
     }
 
@@ -684,20 +682,14 @@ public class FloatingService extends Service {
 
     // ====== 肥料按钮点击 ======
     private void handleFertilizerClick(final String btnKey) {
-        String clipboardText = readClipboardText();
-        if (clipboardText == null || clipboardText.trim().isEmpty()) {
-            Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         // 显示三级加载面板
         showTertiaryPanel();
 
-        // 启动MainActivity并执行快速生成
+        // 启动MainActivity，让其自己读取剪贴板并生成（Android 10+ 后台服务无法读剪贴板）
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         intent.putExtra("quick_btn_key", btnKey);
-        intent.putExtra("quick_clipboard", clipboardText);
+        intent.putExtra("quick_read_clipboard", true);
         startActivity(intent);
     }
 

@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
     private String quickClipboardText;
     private boolean quickFinished = false;
     private boolean pageLoaded = false;
+    private boolean quickNeedReadClipboard = false;
     private Runnable quickTimeoutRunnable;
     private SharedPreferences usageSp;
 
@@ -58,10 +59,16 @@ public class MainActivity extends Activity {
 
         // 检查是否为快速生成模式
         Intent intent = getIntent();
-        if (intent.hasExtra("quick_btn_key") && intent.hasExtra("quick_clipboard")) {
+        if (intent.hasExtra("quick_btn_key")) {
             quickGenerateMode = true;
             quickBtnKey = intent.getStringExtra("quick_btn_key");
-            quickClipboardText = intent.getStringExtra("quick_clipboard");
+            // 两种方式：直接传文本 或 让Activity自己读剪贴板
+            if (intent.hasExtra("quick_clipboard")) {
+                quickClipboardText = intent.getStringExtra("quick_clipboard");
+            } else if (intent.getBooleanExtra("quick_read_clipboard", false)) {
+                // 标记需要读剪贴板，等页面加载完 + Activity获取焦点后读取
+                quickNeedReadClipboard = true;
+            }
         }
 
         // 检查是否有待粘贴的剪贴板内容
@@ -104,12 +111,32 @@ public class MainActivity extends Activity {
 
                 // 快速生成模式：页面加载完成后再执行
                 if (quickGenerateMode && !quickFinished) {
-                    webView.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (!quickFinished) callQuickGenerate();
-                        }
-                    }, 300);
+                    // 如果需要先读剪贴板，延迟一点等Activity获取焦点后再读
+                    if (quickNeedReadClipboard) {
+                        webView.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (quickFinished) return;
+                                String text = readClipboardTextForQuick();
+                                if (text == null || text.trim().isEmpty()) {
+                                    quickFinishWithError("剪贴板为空，请先复制淘口令");
+                                    return;
+                                }
+                                quickClipboardText = text;
+                                quickNeedReadClipboard = false;
+                                // 同时粘贴到输入框，让用户看到
+                                pasteTextToInput(text);
+                                callQuickGenerate();
+                            }
+                        }, 500);
+                    } else if (quickClipboardText != null) {
+                        webView.postDelayed(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (!quickFinished) callQuickGenerate();
+                            }
+                        }, 300);
+                    }
                 }
 
                 // 待粘贴剪贴板内容
@@ -505,20 +532,45 @@ public class MainActivity extends Activity {
             }, 800);
         }
 
-        if (intent.hasExtra("quick_btn_key") && intent.hasExtra("quick_clipboard")) {
+        if (intent.hasExtra("quick_btn_key")) {
             quickGenerateMode = true;
             quickFinished = false;
             cancelQuickTimeout();
             quickBtnKey = intent.getStringExtra("quick_btn_key");
-            quickClipboardText = intent.getStringExtra("quick_clipboard");
-            // 如果页面已加载完成，直接调用生成；否则等 onPageFinished 触发
-            if (pageLoaded) {
-                webView.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (!quickFinished) callQuickGenerate();
-                    }
-                }, 200);
+
+            if (intent.hasExtra("quick_clipboard")) {
+                quickClipboardText = intent.getStringExtra("quick_clipboard");
+                quickNeedReadClipboard = false;
+                // 如果页面已加载完成，直接调用生成
+                if (pageLoaded) {
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (!quickFinished) callQuickGenerate();
+                        }
+                    }, 200);
+                }
+            } else if (intent.getBooleanExtra("quick_read_clipboard", false)) {
+                quickNeedReadClipboard = true;
+                quickClipboardText = null;
+                // 如果页面已加载，直接读剪贴板生成
+                if (pageLoaded) {
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (quickFinished) return;
+                            String text = readClipboardTextForQuick();
+                            if (text == null || text.trim().isEmpty()) {
+                                quickFinishWithError("剪贴板为空，请先复制淘口令");
+                                return;
+                            }
+                            quickClipboardText = text;
+                            quickNeedReadClipboard = false;
+                            pasteTextToInput(text);
+                            callQuickGenerate();
+                        }
+                    }, 300);
+                }
             }
         }
     }
@@ -600,6 +652,41 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "已粘贴到输入框", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "读取失败", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // 快速生成专用：读取剪贴板文本，失败返回null
+    private String readClipboardTextForQuick() {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null || !clipboard.hasPrimaryClip()) return null;
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null || clip.getItemCount() == 0) return null;
+
+            String content = null;
+            ClipData.Item item = clip.getItemAt(0);
+            CharSequence text = item.getText();
+            if (text != null && !text.toString().trim().isEmpty()) {
+                content = text.toString().trim();
+            }
+            if (content == null) {
+                String html = item.getHtmlText();
+                if (html != null && !html.trim().isEmpty()) {
+                    content = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim();
+                }
+            }
+            if (content == null) {
+                Uri uri = item.getUri();
+                if (uri != null) content = uri.toString();
+            }
+            if (content == null) {
+                content = item.coerceToText(MainActivity.this).toString().trim();
+            }
+
+            if (content == null || content.isEmpty()) return null;
+            return content;
+        } catch (Exception e) {
+            return null;
         }
     }
 
