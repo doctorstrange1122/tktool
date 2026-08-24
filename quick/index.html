@@ -456,7 +456,9 @@
             if (el) el.value = text || '';
         };
 
-        // 悬浮窗调用：传入剪贴板内容 + 按钮key，返回生成的链接
+        // 悬浮窗调用：传入剪贴板内容 + 按钮key，生成二维码并返回结果
+        // 勾选自动跳转：跳过二维码生成，直接复制链接跳转（更快）
+        // 未勾选自动跳转：直接调用 generateQRCodes（与主界面按钮完全一致）
         window.floatGenerate = async function(clipboardText, btnKey) {
             try {
                 const cfg = floatButtonConfigs[btnKey];
@@ -467,37 +469,61 @@
                     return JSON.stringify({ success: false, error: '剪贴板为空' });
                 }
 
-                // 解析商品ID
+                const text = clipboardText.trim();
+
+                // 先把内容填入输入框
+                const inputEl = document.getElementById('productLink');
+                if (inputEl) inputEl.value = text;
+
+                const autoJump = getAutoJumpEnabled();
+
+                // 解析商品ID（两种模式都需要）
                 let productId = null;
                 try {
-                    productId = await parseItemIdFromShareText(clipboardText.trim());
+                    productId = await parseItemIdFromShareText(text);
                 } catch (e) {
                     console.warn('淘口令解析异常:', e.message);
                 }
                 if (!productId) {
-                    productId = extractProductId(clipboardText.trim());
+                    productId = extractProductId(text);
                 }
                 if (!productId) {
+                    const resultArea = document.getElementById('resultArea');
+                    if (resultArea) {
+                        resultArea.innerHTML = '<p style="color: red;">解析失败：无法获取商品ID</p>';
+                    }
                     return JSON.stringify({ success: false, error: '解析失败：无法获取商品ID' });
                 }
 
-                // 生成完整链接
                 const fullLink = cfg.fixedString + productId;
 
-                // 增加使用次数
-                incrementUsageCount(btnKey);
+                if (autoJump) {
+                    // 勾选了自动跳转：跳过二维码生成，直接复制返回（加快速度）
+                    copyToClipboard(fullLink);
+                    incrementUsageCount(btnKey);
+                    if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
+                        const usageData = getUsageData();
+                        window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
+                    }
+                    return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: true });
+                }
 
-                // 同步使用次数到悬浮窗（如果在悬浮窗WebView中）
+                // 未勾选自动跳转：直接调用 generateQRCodes（与主界面按钮完全一致）
+                await generateQRCodes(cfg.quantity, cfg.fixedString, cfg.autoLabel, btnKey);
+
+                // 同步使用次数到悬浮窗
                 if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
                     const usageData = getUsageData();
                     window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
                 }
 
-                // 获取自动跳转设置
-                const autoJump = getAutoJumpEnabled();
-
-                return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: autoJump });
+                return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: false });
             } catch (e) {
+                console.error('floatGenerate error:', e);
+                const resultArea = document.getElementById('resultArea');
+                if (resultArea) {
+                    resultArea.innerHTML = '<p style="color: red;">生成失败：' + (e.message || '未知错误') + '</p>';
+                }
                 return JSON.stringify({ success: false, error: e.message || '生成失败' });
             }
         };

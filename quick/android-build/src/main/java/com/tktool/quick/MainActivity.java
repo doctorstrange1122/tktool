@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
     private boolean quickNeedReadClipboard = false;
     private Runnable quickTimeoutRunnable;
     private SharedPreferences usageSp;
+    private boolean pendingStartScan = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +84,9 @@ public class MainActivity extends Activity {
         handleShareIntent(getIntent());
         if (getIntent().getBooleanExtra("read_clipboard", false)) {
             pendingClipboardRead = true;
+        }
+        if (getIntent().getBooleanExtra("start_scan", false)) {
+            pendingStartScan = true;
         }
 
         WebSettings settings = webView.getSettings();
@@ -144,6 +148,17 @@ public class MainActivity extends Activity {
                 if (pendingClipboardRead) {
                     pendingClipboardRead = false;
                     readClipboardAndFill();
+                }
+
+                // 待启动扫码
+                if (pendingStartScan) {
+                    pendingStartScan = false;
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            startNativeScanActivity();
+                        }
+                    }, 300);
                 }
             }
 
@@ -290,14 +305,7 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                            requestPermissions(new String[]{Manifest.permission.CAMERA}, 1001);
-                            return;
-                        }
-                    }
-                    Intent intent = new Intent(MainActivity.this, ScanActivity.class);
-                    startActivityForResult(intent, REQUEST_SCAN);
+                    startNativeScanActivity();
                 }
             });
         }
@@ -454,6 +462,18 @@ public class MainActivity extends Activity {
         return false;
     }
 
+    // 启动原生扫码Activity（先检查相机权限）
+    private void startNativeScanActivity() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.CAMERA}, 1001);
+                return;
+            }
+        }
+        Intent intent = new Intent(MainActivity.this, ScanActivity.class);
+        startActivityForResult(intent, REQUEST_SCAN);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -521,6 +541,20 @@ public class MainActivity extends Activity {
                     }
                 }
             }, 800);
+        }
+
+        if (intent.getBooleanExtra("start_scan", false)) {
+            pendingStartScan = true;
+            if (pageLoaded && webView.getUrl() != null
+                    && webView.getUrl().contains("doctorstrange1122")) {
+                pendingStartScan = false;
+                webView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        startNativeScanActivity();
+                    }
+                }, 200);
+            }
         }
 
         if (intent.hasExtra("quick_btn_key")) {
@@ -789,15 +823,23 @@ public class MainActivity extends Activity {
                 // 通知悬浮窗：生成完成，关闭三级面板
                 notifyFloatingGenerateDone();
 
+                // Java层主动复制链接到剪贴板（确保同步写入完成，避免JS异步复制的时序问题）
+                copyLinkToClipboardSync(link);
+
                 if (autoJump) {
-                    // 自动跳转淘宝
-                    openQuickTaobao(link);
+                    // 延迟300ms跳转，确保剪贴板写入完成后再唤起淘宝
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            openQuickTaobao(link);
+                        }
+                    }, 300);
                     // 延迟关闭Activity（仅自动跳转时才关闭）
                     webView.postDelayed(new Runnable() {
                         @Override public void run() {
                             quickGenerateMode = false;
                         }
-                    }, 800);
+                    }, 1200);
                 } else {
                     // 不跳转：滚动到结果区，保留页面
                     webView.evaluateJavascript(
@@ -838,27 +880,61 @@ public class MainActivity extends Activity {
         } catch (Exception e) { /* ignore */ }
     }
 
+    // 同步复制链接到剪贴板（Java层直接操作，确保写入完成）
+    private void copyLinkToClipboardSync(String text) {
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("tktool", text);
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, "链接已复制到剪贴板", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            // 忽略复制失败
+        }
+    }
+
     private void openQuickTaobao(String url) {
+        // 第一优先：tbopen:// 淘宝官方 Deep Link（最可靠，支持直接打开H5页面）
+        try {
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            intent.setPackage("com.taobao.taobao");
+            startActivity(intent);
+            return;
+        } catch (Exception e1) {
+            // tbopen 失败，继续尝试其他方式
+        }
+
+        // 第二优先：tbopen:// 不加包名（让系统找合适的应用）
+        try {
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            startActivity(intent);
+            return;
+        } catch (Exception e2) {
+            // 继续尝试 taobao://
+        }
+
+        // 第三优先：taobao:// scheme
         try {
             String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
             intent.setPackage("com.taobao.taobao");
             startActivity(intent);
-        } catch (Exception e1) {
-            try {
-                String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
-                startActivity(intent);
-            } catch (Exception e2) {
-                try {
-                    String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
-                            Uri.encode(url);
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
-                    startActivity(intent);
-                } catch (Exception e3) {
-                    Toast.makeText(this, "跳转失败，请检查是否安装淘宝", Toast.LENGTH_SHORT).show();
-                }
-            }
+            return;
+        } catch (Exception e3) {
+            // 继续尝试
+        }
+
+        // 第四优先：taobao:// 不加包名
+        try {
+            String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
+            startActivity(intent);
+            return;
+        } catch (Exception e4) {
+            Toast.makeText(this, "跳转失败，请检查是否安装淘宝", Toast.LENGTH_SHORT).show();
         }
     }
 
