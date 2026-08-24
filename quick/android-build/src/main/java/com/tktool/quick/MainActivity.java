@@ -2,7 +2,6 @@ package com.tktool.quick;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.ProgressDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ContentValues;
@@ -32,20 +31,18 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 
-import android.text.Html;
-
 public class MainActivity extends Activity {
     private WebView webView;
     private PermissionRequest pendingPermissionRequest;
     private static final int REQUEST_SCAN = 1003;
 
     private boolean pendingClipboardRead = false;
+    private String pendingPasteText = null;
 
     // 快速生成模式（悬浮窗调用）
     private boolean quickGenerateMode = false;
     private String quickBtnKey;
     private String quickClipboardText;
-    private ProgressDialog quickLoadingDialog;
     private boolean quickFinished = false;
     private SharedPreferences usageSp;
 
@@ -63,22 +60,23 @@ public class MainActivity extends Activity {
             quickGenerateMode = true;
             quickBtnKey = intent.getStringExtra("quick_btn_key");
             quickClipboardText = intent.getStringExtra("quick_clipboard");
+        }
 
-            // 显示loading
-            quickLoadingDialog = new ProgressDialog(this);
-            quickLoadingDialog.setMessage("正在生成...");
-            quickLoadingDialog.setCancelable(false);
-            quickLoadingDialog.show();
+        // 检查是否有待粘贴的剪贴板内容
+        if (intent.hasExtra("paste_clipboard")) {
+            pendingPasteText = intent.getStringExtra("paste_clipboard");
         }
 
         webView = new WebView(this);
         setContentView(webView);
 
-        // 处理分享传入的文本 或 悬浮窗传入的剪贴板内容
+        // 处理分享传入的文本
         handleShareIntent(getIntent());
         if (getIntent().getBooleanExtra("read_clipboard", false)) {
             pendingClipboardRead = true;
-        }        WebSettings settings = webView.getSettings();
+        }
+
+        WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setAllowFileAccess(true);
@@ -95,18 +93,34 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                if (url == null || !url.contains("doctorstrange1122")) return;
+
+                // 页面加载完，同步按钮配置到悬浮窗
+                syncButtonConfigsToFloating();
+
                 // 快速生成模式
-                if (quickGenerateMode && url != null && url.contains("doctorstrange1122")) {
+                if (quickGenerateMode) {
                     webView.postDelayed(new Runnable() {
                         @Override
                         public void run() {
                             if (!quickFinished) callQuickGenerate();
                         }
-                    }, 500);
+                    }, 400);
                     return;
                 }
-                // 页面加载完成后，处理待执行的剪贴板读取
-                if (pendingClipboardRead && url != null && url.contains("doctorstrange1122")) {
+
+                // 待粘贴剪贴板内容
+                if (pendingPasteText != null) {
+                    final String text = pendingPasteText;
+                    pendingPasteText = null;
+                    webView.postDelayed(new Runnable() {
+                        @Override
+                        public void run() { pasteTextToInput(text); }
+                    }, 200);
+                }
+
+                // 待读取剪贴板
+                if (pendingClipboardRead) {
                     pendingClipboardRead = false;
                     readClipboardAndFill();
                 }
@@ -168,7 +182,50 @@ public class MainActivity extends Activity {
             }
         });
 
-        webView.loadUrl("https://doctorstrange1122.github.io/tktool/quick/?v=");
+        webView.loadUrl("https://doctorstrange1122.github.io/tktool/quick/?v=" + System.currentTimeMillis());
+    }
+
+    // 同步按钮配置到悬浮窗（从网页JS读取配置）
+    private void syncButtonConfigsToFloating() {
+        if (!isFloatingServiceRunning()) return;
+        webView.evaluateJavascript(
+            "(function(){" +
+            "if (window.floatBtnConfigs && Array.isArray(window.floatBtnConfigs)) {" +
+            "  var arr = [];" +
+            "  for (var i = 0; i < window.floatBtnConfigs.length; i++) {" +
+            "    var c = window.floatBtnConfigs[i];" +
+            "    arr.push(c.key, c.label, c.countKey || c.key);" +
+            "  }" +
+            "  return JSON.stringify(arr);" +
+            "}" +
+            "return '';" +
+            "})()",
+            new android.webkit.ValueCallback<String>() {
+                @Override
+                public void onReceiveValue(String value) {
+                    if (value == null || value.isEmpty() || "null".equals(value) || "\"\"".equals(value)) return;
+                    try {
+                        // 去掉两端的引号
+                        if (value.startsWith("\"") && value.endsWith("\"")) {
+                            value = value.substring(1, value.length() - 1);
+                        }
+                        // 转义处理
+                        value = value.replace("\\\"", "\"").replace("\\\\", "\\");
+                        // 解析JSON数组
+                        org.json.JSONArray jsonArr = new org.json.JSONArray(value);
+                        String[] configs = new String[jsonArr.length()];
+                        for (int i = 0; i < jsonArr.length(); i++) {
+                            configs[i] = jsonArr.getString(i);
+                        }
+                        if (configs.length > 0) {
+                            Intent intent = new Intent(MainActivity.this, FloatingService.class);
+                            intent.putExtra("btn_configs", configs);
+                            startService(intent);
+                        }
+                    } catch (Exception e) { /* ignore parse errors */ }
+                }
+            }
+        );
     }
 
     private void startFloatingService() {
@@ -186,6 +243,11 @@ public class MainActivity extends Activity {
         } else {
             startService(serviceIntent);
         }
+        // 启动后立即同步按钮配置
+        webView.postDelayed(new Runnable() {
+            @Override
+            public void run() { syncButtonConfigsToFloating(); }
+        }, 500);
         Toast.makeText(this, "悬浮窗已开启", Toast.LENGTH_SHORT).show();
     }
 
@@ -225,7 +287,6 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     try {
-                        // 去掉 data:image/png;base64, 前缀
                         String pureBase64 = base64Data;
                         if (base64Data.contains(",")) {
                             pureBase64 = base64Data.substring(base64Data.indexOf(",") + 1);
@@ -253,7 +314,6 @@ public class MainActivity extends Activity {
                             FileOutputStream fos = new FileOutputStream(file);
                             bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
                             fos.close();
-                            // 通知相册刷新
                             Intent mediaScan = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
                             mediaScan.setData(Uri.fromFile(file));
                             sendBroadcast(mediaScan);
@@ -293,7 +353,6 @@ public class MainActivity extends Activity {
         public String toggleFloatingWindow() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 if (!android.provider.Settings.canDrawOverlays(MainActivity.this)) {
-                    // 没有悬浮窗权限，引导用户开启
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -347,6 +406,19 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public boolean isHarmonyOS() {
+            try {
+                Class<?> clazz = Class.forName("android.os.SystemProperties");
+                java.lang.reflect.Method getMethod = clazz.getMethod("get", String.class);
+                String harmonyVersion = (String) getMethod.invoke(null, "ro.build.version.harmonyos");
+                if (harmonyVersion != null && !harmonyVersion.isEmpty()) return true;
+                String osName = (String) getMethod.invoke(null, "ro.product.system.name");
+                if (osName != null && osName.toLowerCase().contains("harmony")) return true;
+            } catch (Exception e) { /* ignore */ }
+            return false;
+        }
     }
 
     private boolean isFloatingServiceRunning() {
@@ -374,7 +446,6 @@ public class MainActivity extends Activity {
                 }
             }
         } else if (requestCode == 2002) {
-            // 悬浮窗权限返回后重试启动服务
             startFloatingService();
         }
     }
@@ -406,9 +477,19 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleShareIntent(intent);
+
+        if (intent.hasExtra("paste_clipboard")) {
+            String text = intent.getStringExtra("paste_clipboard");
+            if (text != null && webView != null && webView.getUrl() != null
+                    && webView.getUrl().contains("doctorstrange1122")) {
+                pasteTextToInput(text);
+            } else {
+                pendingPasteText = text;
+            }
+        }
+
         if (intent.getBooleanExtra("read_clipboard", false)) {
             pendingClipboardRead = true;
-            // 延迟读取，确保系统剪贴板同步完成
             webView.postDelayed(new Runnable() {
                 @Override
                 public void run() {
@@ -420,6 +501,19 @@ public class MainActivity extends Activity {
                 }
             }, 800);
         }
+
+        if (intent.hasExtra("quick_btn_key") && intent.hasExtra("quick_clipboard")) {
+            quickGenerateMode = true;
+            quickFinished = false;
+            quickBtnKey = intent.getStringExtra("quick_btn_key");
+            quickClipboardText = intent.getStringExtra("quick_clipboard");
+            webView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (!quickFinished) callQuickGenerate();
+                }
+            }, 400);
+        }
     }
 
     private void handleShareIntent(Intent intent) {
@@ -430,7 +524,6 @@ public class MainActivity extends Activity {
         if (Intent.ACTION_SEND.equals(action) && "text/plain".equals(type)) {
             String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
             if (sharedText != null && !sharedText.isEmpty() && webView != null) {
-                // 将分享的文本填入输入框并自动生成
                 final String escaped = sharedText
                         .replace("\\", "\\\\")
                         .replace("'", "\\'")
@@ -447,6 +540,17 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void pasteTextToInput(String text) {
+        if (text == null || webView == null) return;
+        final String escaped = text.replace("\\", "\\\\")
+                .replace("'", "\\'").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "");
+        webView.evaluateJavascript(
+            "if (window.setInputText) { window.setInputText('" + escaped + "'); }" +
+            " else { var el = document.getElementById('productLink'); if (el) el.value = '" + escaped + "'; }",
+            null);
+    }
+
     private void readClipboardAndFill() {
         try {
             ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -460,29 +564,22 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            // 尝试多种方式读取最近一条剪贴板内容
             String content = null;
             ClipData.Item item = clip.getItemAt(0);
-
             CharSequence text = item.getText();
             if (text != null && !text.toString().trim().isEmpty()) {
                 content = text.toString().trim();
             }
-
             if (content == null) {
                 String html = item.getHtmlText();
                 if (html != null && !html.trim().isEmpty()) {
                     content = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim();
                 }
             }
-
             if (content == null) {
                 Uri uri = item.getUri();
-                if (uri != null) {
-                    content = uri.toString();
-                }
+                if (uri != null) content = uri.toString();
             }
-
             if (content == null) {
                 content = item.coerceToText(MainActivity.this).toString().trim();
             }
@@ -492,14 +589,7 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            // 只填入输入框，不自动生成
-            final String escaped = content
-                    .replace("\\", "\\\\")
-                    .replace("'", "\\'")
-                    .replace("\n", "\\n")
-                    .replace("\r", "");
-            webView.evaluateJavascript(
-                "document.getElementById('productLink').value = '" + escaped + "';", null);
+            pasteTextToInput(content);
             Toast.makeText(this, "已粘贴到输入框", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "读取失败", Toast.LENGTH_SHORT).show();
@@ -540,42 +630,51 @@ public class MainActivity extends Activity {
         quickFinished = true;
 
         try {
-            if (resultJson.contains("\"success\":true")) {
-                int linkStart = resultJson.indexOf("\"link\":\"") + 8;
-                int linkEnd = resultJson.indexOf("\"", linkStart);
-                String link = resultJson.substring(linkStart, linkEnd);
-                link = link.replace("\\/", "/");
+            // 解析JSON结果
+            org.json.JSONObject json = new org.json.JSONObject(resultJson);
+            boolean success = json.optBoolean("success", false);
 
-                if (quickLoadingDialog != null && quickLoadingDialog.isShowing()) {
-                    quickLoadingDialog.setMessage("生成成功，正在跳转...");
-                }
+            if (success) {
+                String link = json.optString("link", "");
+                boolean autoJump = json.optBoolean("autoJump", false);
 
                 // 保存使用次数
                 saveQuickUsageCount(quickBtnKey);
 
-                // 跳转淘宝
-                openQuickTaobao(link);
+                // 通知悬浮窗：生成完成，关闭三级面板
+                notifyFloatingGenerateDone();
 
-                // 延迟关闭
-                webView.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        finish();
-                    }
-                }, 500);
-            } else {
-                String error = "生成失败";
-                int errStart = resultJson.indexOf("\"error\":\"");
-                if (errStart >= 0) {
-                    errStart += 9;
-                    int errEnd = resultJson.indexOf("\"", errStart);
-                    if (errEnd > errStart) error = resultJson.substring(errStart, errEnd);
+                if (autoJump) {
+                    // 自动跳转淘宝
+                    openQuickTaobao(link);
+                    // 延迟关闭Activity
+                    webView.postDelayed(new Runnable() {
+                        @Override public void run() { finish(); }
+                    }, 600);
+                } else {
+                    // 不跳转：滚动到结果区
+                    webView.evaluateJavascript(
+                        "if (window.scrollToResult) window.scrollToResult();" +
+                        " else { var r = document.getElementById('resultSection'); if (r) r.scrollIntoView({behavior:'smooth'}); }",
+                        null);
+                    // 快速生成模式结束，保留页面
+                    quickGenerateMode = false;
                 }
+            } else {
+                String error = json.optString("error", "生成失败");
                 quickFinishWithError(error);
             }
         } catch (Exception e) {
             quickFinishWithError("解析结果失败");
         }
+    }
+
+    private void notifyFloatingGenerateDone() {
+        try {
+            Intent intent = new Intent(this, FloatingService.class);
+            intent.putExtra("generate_done", true);
+            startService(intent);
+        } catch (Exception e) { /* ignore */ }
     }
 
     private void saveQuickUsageCount(String key) {
@@ -618,19 +717,17 @@ public class MainActivity extends Activity {
     }
 
     private void quickFinishWithError(String error) {
-        if (quickLoadingDialog != null && quickLoadingDialog.isShowing()) {
-            quickLoadingDialog.dismiss();
-        }
+        // 错误时也通知悬浮窗关闭三级面板
+        notifyFloatingGenerateDone();
         Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
         quickFinished = true;
-        // 错误时不自动关闭，让用户看到错误，也可以手动使用
         quickGenerateMode = false;
     }
 
     @Override
     public void onBackPressed() {
         if (quickGenerateMode) {
-            // 快速生成模式下按返回直接关闭
+            notifyFloatingGenerateDone();
             finish();
             return;
         }

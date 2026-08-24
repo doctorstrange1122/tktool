@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================
-# 快跳淘宝（悬浮窗版）APK 构建脚本
+# 快捷过肥（悬浮窗版）APK 构建脚本
 # 包名: com.tktool.quick，独立签名，与正式版共存
 # ============================================
 set -e
@@ -20,7 +20,7 @@ KEY_ALIAS="quick_v1"
 KEY_PASS="quick2026"
 
 echo "========================================"
-echo "  快跳淘宝 APK 构建"
+echo "  快捷过肥 APK 构建"
 echo "  包名: com.tktool.quick"
 echo "========================================"
 
@@ -99,7 +99,7 @@ if [ ! -f "$KEYSTORE" ]; then
         -alias "$KEY_ALIAS" \
         -keyalg RSA -keysize 2048 -validity 10000 \
         -storepass "$KEYSTORE_PASS" -keypass "$KEY_PASS" \
-        -dname "CN=QuickTaobao, OU=Dev, O=Quick, L=Shenzhen, ST=Guangdong, C=CN"
+        -dname "CN=QuickGuofei, OU=Dev, O=Quick, L=Shenzhen, ST=Guangdong, C=CN"
 fi
 
 $BUILD_TOOLS/apksigner sign \
@@ -107,7 +107,7 @@ $BUILD_TOOLS/apksigner sign \
     --ks-pass pass:"$KEYSTORE_PASS" \
     --ks-key-alias "$KEY_ALIAS" \
     --key-pass pass:"$KEY_PASS" \
-    --out quick_taobao.apk \
+    --out quick_guofei.apk \
     aligned.apk
 
 cd "$SCRIPT_DIR"
@@ -115,6 +115,6 @@ cd "$SCRIPT_DIR"
 echo "[8/8] 构建完成!"
 echo ""
 echo "========================================"
-echo "  APK: $OUT_DIR/quick_taobao.apk"
-echo "  大小: $(ls -la "$OUT_DIR/quick_taobao.apk" | awk '{print $5}') bytes"
+echo "  APK: $OUT_DIR/quick_guofei.apk"
+echo "  大小: $(ls -la "$OUT_DIR/quick_guofei.apk" | awk '{print $5}') bytes"
 echo "========================================"

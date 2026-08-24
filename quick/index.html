@@ -202,6 +202,47 @@
             box-shadow: 0 2px 8px rgba(110,130,160,0.25);
         }
 
+        /* 自动跳转复选框 */
+        .auto-jump-checkbox {
+            margin-top: 10px;
+            padding: 0 2px;
+        }
+        .checkbox-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #4a5c6e;
+            cursor: pointer;
+            user-select: none;
+        }
+        .checkbox-label input[type="checkbox"] {
+            display: none;
+        }
+        .checkbox-custom {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #8ba0b5;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+            background: #6a8a9a;
+            border-color: #6a8a9a;
+        }
+        .checkbox-label input[type="checkbox"]:checked + .checkbox-custom::after {
+            content: '✓';
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
         /* 结果区 */
         #resultArea { margin-top: 0; margin-bottom: 18px; }
         .qr-code-container {
@@ -325,12 +366,22 @@
             </div>
             <div class="tip-text">粘贴淘口令/分享文本或通过当面分享扫码，自动解析获取商品ID</div>
         </div>
+
+        <!-- 自动跳转复选框 -->
+        <div class="auto-jump-checkbox">
+            <label class="checkbox-label">
+                <input type="checkbox" id="autoJumpCheck">
+                <span class="checkbox-custom"></span>
+                生成二维码后自动跳转淘宝
+            </label>
+        </div>
     </div>
 
     <div class="card">
         <div class="card-title">生成二维码</div>
         <div class="button-group">
              <button onclick="generateQRCodes(500, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=69755&activityId=100129&deliveryId=69755&sceneId=7779&itemIds=', '500☀☀', '500ss')" data-btn-key="500ss">500☀☀(1次)<span class="usage-badge zero">0</span></button>
+            <button onclick="generateQRCodes(1, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?activityId=100129&deliveryId=90243&sceneId=9267&spma=mspd&spmb=qdmsxiadan&itemIds=', '元宝', 'yuanbao')" data-btn-key="yuanbao">元宝(1次)<span class="usage-badge zero">0</span></button>
             <button onclick="generateQRCodes(30000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=68479&deliveryId=68479&sceneId=7506&itemIds=', '3万', '3w')" data-btn-key="3w">3万肥料(1次)<span class="usage-badge zero">0</span></button>
             <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=68422&deliveryId=68422&sceneId=7506&itemIds=', '4万①', '4w1')" data-btn-key="4w1">4万肥料①(1次)<span class="usage-badge zero">0</span></button>
             <button onclick="generateQRCodes(40000, 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=74994&deliveryId=74994&sceneId=7506&itemIds=', '4万②', '4w2')" data-btn-key="4w2">4万肥料②(1次)<span class="usage-badge zero">0</span></button>
@@ -363,12 +414,46 @@
         // 按钮配置：key -> { label, quantity, fixedString, autoLabel }
         const floatButtonConfigs = {
             '500ss': { label: '阳光', quantity: 500, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=69755&activityId=100129&deliveryId=69755&sceneId=7779&itemIds=', autoLabel: '500☀☀' },
+            'yuanbao': { label: '元宝', quantity: 1, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?activityId=100129&deliveryId=90243&sceneId=9267&spma=mspd&spmb=qdmsxiadan&itemIds=', autoLabel: '元宝' },
             '3w':    { label: '3万',  quantity: 30000, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=68479&deliveryId=68479&sceneId=7506&itemIds=', autoLabel: '3万' },
             '4w1':   { label: '4万①', quantity: 40000, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=68422&deliveryId=68422&sceneId=7506&itemIds=', autoLabel: '4万①' },
             '4w2':   { label: '4万②', quantity: 40000, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=74994&deliveryId=74994&sceneId=7506&itemIds=', autoLabel: '4万②' },
             '5w1':   { label: '5万①', quantity: 50000, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=69029&deliveryId=69029&sceneId=7310&itemIds=', autoLabel: '5万①' },
             '5w2':   { label: '5万②', quantity: 50000, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=70424&deliveryId=70424&sceneId=7506&itemIds=', autoLabel: '5万②' },
             '6w':    { label: '6万',   quantity: 60000, fixedString: 'https://pages-fast.m.taobao.com/wow/z/app/ltao-fe/tjb-ssr/home?x-ssr=true&pha_manifest=default&disableNav=YES&x-preload=true&disableProgress=true&disableRedirect=tr&x-sec=wua&spma=mspd&spmb=qdmsxiadan&prismTrace=68206&deliveryId=68206&sceneId=7506&itemIds=', autoLabel: '6万' }
+        };
+
+        // 悬浮窗二级面板按钮配置（与按钮组同步，MainActivity读取后传给FloatingService）
+        // 修改此数组即可同步修改悬浮窗二级面板按钮
+        window.floatBtnConfigs = [
+            { key: '500ss',   label: '阳光',  countKey: '500ss' },
+            { key: 'yuanbao', label: '元宝',  countKey: 'yuanbao' },
+            { key: '3w',      label: '3万',   countKey: '3w' },
+            { key: '4w1',     label: '4万①', countKey: '4w1' },
+            { key: '4w2',     label: '4万②', countKey: '4w2' },
+            { key: '5w1',     label: '5万①', countKey: '5w1' },
+            { key: '5w2',     label: '5万②', countKey: '5w2' },
+            { key: '6w',      label: '6万',   countKey: '6w' }
+        ];
+
+        // 是否自动跳转（读取复选框状态）
+        function getAutoJumpEnabled() {
+            const el = document.getElementById('autoJumpCheck');
+            return el ? el.checked : false;
+        }
+
+        // 滚动到结果区
+        window.scrollToResult = function() {
+            const resultArea = document.getElementById('resultArea');
+            if (resultArea) {
+                resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        };
+
+        // 设置输入框文字（供Java端粘贴剪贴板调用）
+        window.setInputText = function(text) {
+            const el = document.getElementById('productLink');
+            if (el) el.value = text || '';
         };
 
         // 悬浮窗调用：传入剪贴板内容 + 按钮key，返回生成的链接
@@ -408,7 +493,10 @@
                     window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
                 }
 
-                return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel });
+                // 获取自动跳转设置
+                const autoJump = getAutoJumpEnabled();
+
+                return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: autoJump });
             } catch (e) {
                 return JSON.stringify({ success: false, error: e.message || '生成失败' });
             }
