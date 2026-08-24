@@ -111,31 +111,22 @@ public class MainActivity extends Activity {
 
                 // 快速生成模式：页面加载完成后再执行
                 if (quickGenerateMode && !quickFinished) {
-                    // 如果需要先读剪贴板，延迟一点等Activity获取焦点后再读
                     if (quickNeedReadClipboard) {
+                        // 优先从输入框读取内容（避免重复读剪贴板），输入框为空才读剪贴板
                         webView.postDelayed(new Runnable() {
                             @Override
                             public void run() {
                                 if (quickFinished) return;
-                                String text = readClipboardTextForQuick();
-                                if (text == null || text.trim().isEmpty()) {
-                                    quickFinishWithError("剪贴板为空，请先复制淘口令");
-                                    return;
-                                }
-                                quickClipboardText = text;
-                                quickNeedReadClipboard = false;
-                                // 同时粘贴到输入框，让用户看到
-                                pasteTextToInput(text);
-                                callQuickGenerate();
+                                startQuickGenerateFromInputOrClipboard();
                             }
-                        }, 500);
+                        }, 300);
                     } else if (quickClipboardText != null) {
                         webView.postDelayed(new Runnable() {
                             @Override
                             public void run() {
                                 if (!quickFinished) callQuickGenerate();
                             }
-                        }, 300);
+                        }, 200);
                     }
                 }
 
@@ -553,23 +544,15 @@ public class MainActivity extends Activity {
             } else if (intent.getBooleanExtra("quick_read_clipboard", false)) {
                 quickNeedReadClipboard = true;
                 quickClipboardText = null;
-                // 如果页面已加载，直接读剪贴板生成
+                // 如果页面已加载，先看输入框有没有内容，没有再读剪贴板
                 if (pageLoaded) {
                     webView.postDelayed(new Runnable() {
                         @Override
                         public void run() {
                             if (quickFinished) return;
-                            String text = readClipboardTextForQuick();
-                            if (text == null || text.trim().isEmpty()) {
-                                quickFinishWithError("剪贴板为空，请先复制淘口令");
-                                return;
-                            }
-                            quickClipboardText = text;
-                            quickNeedReadClipboard = false;
-                            pasteTextToInput(text);
-                            callQuickGenerate();
+                            startQuickGenerateFromInputOrClipboard();
                         }
-                    }, 300);
+                    }, 200);
                 }
             }
         }
@@ -688,6 +671,55 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // 快速生成：优先从输入框读内容，输入框为空再读剪贴板
+    private void startQuickGenerateFromInputOrClipboard() {
+        if (webView == null || quickFinished) return;
+
+        // 先读取输入框内容
+        webView.evaluateJavascript(
+            "(function(){" +
+            "var el = document.getElementById('productLink');" +
+            "return el ? (el.value || '') : '';" +
+            "})()",
+            new android.webkit.ValueCallback<String>() {
+                @Override
+                public void onReceiveValue(String value) {
+                    if (quickFinished) return;
+
+                    String inputText = null;
+                    if (value != null && !"null".equals(value) && !"\"\"".equals(value)) {
+                        // 去掉两端引号和转义
+                        if (value.startsWith("\"") && value.endsWith("\"")) {
+                            inputText = value.substring(1, value.length() - 1)
+                                    .replace("\\\"", "\"").replace("\\\\", "\\")
+                                    .replace("\\n", "\n").replace("\\r", "");
+                        } else {
+                            inputText = value;
+                        }
+                    }
+
+                    if (inputText != null && !inputText.trim().isEmpty()) {
+                        // 输入框有内容，直接用
+                        quickClipboardText = inputText.trim();
+                        quickNeedReadClipboard = false;
+                        callQuickGenerate();
+                    } else {
+                        // 输入框为空，读剪贴板
+                        String clipboardText = readClipboardTextForQuick();
+                        if (clipboardText == null || clipboardText.trim().isEmpty()) {
+                            quickFinishWithError("剪贴板为空，请先复制淘口令");
+                            return;
+                        }
+                        quickClipboardText = clipboardText;
+                        quickNeedReadClipboard = false;
+                        pasteTextToInput(clipboardText);
+                        callQuickGenerate();
+                    }
+                }
+            }
+        );
     }
 
     private void callQuickGenerate() {
