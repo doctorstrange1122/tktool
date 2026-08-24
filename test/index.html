@@ -100,33 +100,6 @@
         }
         .input-section input:focus { outline: none; border-color: #8ba0b5; }
         .input-section input::placeholder { color: #b0bcc8; }
-
-        /* 快速跳转复选框 */
-        .quick-jump-section {
-            margin-top: 10px;
-            padding: 10px 12px;
-            background: #eef5f0;
-            border: 1px solid #c5e0d0;
-            border-radius: 8px;
-        }
-        .quick-jump-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            user-select: none;
-        }
-        .quick-jump-checkbox {
-            width: 18px;
-            height: 18px;
-            accent-color: #6a9a7a;
-            cursor: pointer;
-        }
-        .quick-jump-text {
-            font-size: 14px;
-            color: #4a6b5a;
-            font-weight: 500;
-        }
         .input-row { display: flex; gap: 8px; align-items: stretch; }
         .input-row input { flex: 1; }
         .action-btn-group {
@@ -352,14 +325,6 @@
             </div>
             <div class="tip-text">粘贴淘口令/分享文本或通过当面分享扫码，自动解析获取商品ID</div>
         </div>
-
-        <!-- 快速跳转复选框 -->
-        <div class="quick-jump-section">
-            <label class="quick-jump-label">
-                <input type="checkbox" id="quickJumpToggle" class="quick-jump-checkbox">
-                <span class="quick-jump-text">生成后自动跳转淘宝</span>
-            </label>
-        </div>
     </div>
 
     <div class="card">
@@ -464,28 +429,9 @@
 
         // 页面加载时初始化角标
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                initAllBadges();
-                initQuickJumpToggle();
-            });
+            document.addEventListener('DOMContentLoaded', initAllBadges);
         } else {
             initAllBadges();
-            initQuickJumpToggle();
-        }
-
-        // 快速跳转复选框初始化与状态保存
-        function initQuickJumpToggle() {
-            const toggle = document.getElementById('quickJumpToggle');
-            if (!toggle) return;
-            // 从localStorage读取状态
-            const saved = localStorage.getItem('quickJumpEnabled');
-            if (saved === 'true') {
-                toggle.checked = true;
-            }
-            // 监听变化，保存状态
-            toggle.addEventListener('change', function() {
-                localStorage.setItem('quickJumpEnabled', toggle.checked ? 'true' : 'false');
-            });
         }
 
         // 清空输入框功能
@@ -910,16 +856,6 @@
 
         // 跳转到淘宝APP（兼容 Android / iOS / 鸿蒙系统）
         function openTaobaoApp(url) {
-            // APK环境：直接调用NativeBridge，由Java原生Intent唤起，避免弹出选择框
-            if (window.NativeBridge && typeof window.NativeBridge.openTaobao === 'function') {
-                window.NativeBridge.openTaobao(url);
-                return;
-            }
-            if (window.Android && typeof window.Android !== 'undefined' && window.Android.openTaobao) {
-                window.Android.openTaobao(url);
-                return;
-            }
-
             // tbopen:// 是淘宝官方 Deep Link，鸿蒙系统兼容性最好
             const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
             // taobao:// 作为备用 scheme
@@ -933,14 +869,19 @@
 
             // 尝试通过 scheme 唤起 APP（APK中由 Java 拦截，浏览器中由系统处理）
             function tryScheme(schemeUrl) {
-                // 浏览器环境：用隐藏 iframe 避免页面导航错误
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.src = schemeUrl;
-                document.body.appendChild(iframe);
-                setTimeout(function() {
-                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-                }, 3000);
+                if (window.NativeBridge || (window.Android && typeof window.Android !== 'undefined')) {
+                    // APK 环境：Java shouldOverrideUrlLoading 会拦截 scheme
+                    window.location.href = schemeUrl;
+                } else {
+                    // 浏览器环境：用隐藏 iframe 避免页面导航错误
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = schemeUrl;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() {
+                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    }, 3000);
+                }
             }
 
             // 第一优先：tbopen://（鸿蒙兼容性最好）
@@ -1167,14 +1108,6 @@
                 // 更新结果区域
                 resultArea.innerHTML = '';
                 resultArea.appendChild(container);
-
-                // 快速跳转：生成成功后自动跳转淘宝
-                const quickJumpToggle = document.getElementById('quickJumpToggle');
-                if (quickJumpToggle && quickJumpToggle.checked) {
-                    setTimeout(function() {
-                        openTaobaoApp(fullContent);
-                    }, 300);
-                }
             } catch (error) {
                 console.error('生成失败:', error);
                 resultArea.innerHTML = '<p style="color: red;">生成过程中出现错误，请检查控制台。</p>';
