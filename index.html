@@ -688,52 +688,80 @@
         }
 
         // 复制文本到剪贴板（兼容iOS Safari + Android WebView）
+        // 返回 true=成功, false=失败
         function copyToClipboard(text) {
             // APK 环境：使用原生剪贴板（不受 file:// 协议限制）
             if (isInApp && NativeBridge.copyToClipboard) {
                 NativeBridge.copyToClipboard(text);
-                return;
+                return true;
             }
 
-            // 浏览器环境：优先 Clipboard API
+            // 检测 iOS Safari
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+            // iOS Safari：必须同步执行 execCommand，异步 Clipboard API 会丢失用户手势上下文
+            if (isIOS) {
+                return _copyFallback(text);
+            }
+
+            // 非 iOS 浏览器：优先异步 Clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).catch(() => {
+                navigator.clipboard.writeText(text).then(() => {}).catch(() => {
                     _copyFallback(text);
                 });
-            } else {
-                _copyFallback(text);
+                return true;
             }
+
+            return _copyFallback(text);
         }
 
-        // iOS Safari 兼容的复制方案
+        // iOS Safari 兼容的复制方案（必须在用户手势的同步调用栈中调用）
         function _copyFallback(text) {
             const textarea = document.createElement('textarea');
             textarea.value = text;
+            // iOS 中 textarea 需要特殊处理才能可靠选中
+            textarea.contentEditable = true;
+            textarea.readOnly = false;
             textarea.style.position = 'fixed';
-            textarea.style.top = '0';
-            textarea.style.left = '0';
-            textarea.style.width = '1px';
-            textarea.style.height = '1px';
+            textarea.style.top = '50%';
+            textarea.style.left = '50%';
+            textarea.style.width = '2px';
+            textarea.style.height = '2px';
+            textarea.style.padding = '0';
+            textarea.style.border = 'none';
+            textarea.style.outline = 'none';
+            textarea.style.boxShadow = 'none';
+            textarea.style.background = 'transparent';
+            textarea.style.fontSize = '16px'; // iOS 防止自动缩放
             textarea.style.opacity = '0';
-            textarea.setAttribute('readonly', '');
             document.body.appendChild(textarea);
 
-            // iOS 需要创建 Range 选区
-            const range = document.createRange();
-            range.selectNodeContents(textarea);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            textarea.setSelectionRange(0, text.length);
-
             try {
-                document.execCommand('copy');
+                // iOS 必须用 Selection + Range 方式选中文本
+                const range = document.createRange();
+                range.selectNodeContents(textarea);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+                textarea.setSelectionRange(0, 999999);
+
+                const ok = document.execCommand('copy');
+
+                // 兜底：focus + select 再试一次
+                if (!ok) {
+                    textarea.focus();
+                    textarea.select();
+                    document.execCommand('copy');
+                }
+
+                selection.removeAllRanges();
+                document.body.removeChild(textarea);
+                return true;
             } catch (e) {
                 console.error('复制失败:', e);
+                if (textarea.parentNode) document.body.removeChild(textarea);
+                return false;
             }
-
-            selection.removeAllRanges();
-            document.body.removeChild(textarea);
         }
 
         // 下载二维码图片函数（修复版）
@@ -960,7 +988,8 @@
                     colorLight: "#FFFFFF"
                 });
 
-                // 自动复制到剪贴板
+                // 自动复制到剪贴板（iOS 中异步操作后可能失败，用户可用"复制链接"按钮手动复制）
+                window._lastGeneratedLink = fullContent;
                 copyToClipboard(fullContent);
 
                 // 增加按钮使用次数
@@ -1027,9 +1056,9 @@
                 qrRight.className = 'qr-code-right';
 
                 actionButtons.innerHTML = `
-                    <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制链接</button>
+                    <button onclick="if(copyToClipboard(window._lastGeneratedLink)){this.nextElementSibling.style.display='inline';setTimeout(()=>this.nextElementSibling.style.display='none',2000)}else{alert('复制失败，请长按下方链接文本手动复制')}">复制链接</button>
                     <span class="copy-success">✓ 已复制</span>
-                    <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
+                    <button onclick="openTaobaoApp(window._lastGeneratedLink)">一键跳转淘宝APP</button>
                 `;
 
                 qrRight.appendChild(saveTip);
