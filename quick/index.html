@@ -458,7 +458,7 @@
 
         // 悬浮窗调用：传入剪贴板内容 + 按钮key，生成二维码并返回结果
         // 勾选自动跳转：跳过二维码生成，直接复制链接跳转（更快）
-        // 未勾选自动跳转：直接调用 generateQRCodes（与主界面按钮完全一致）
+        // 未勾选自动跳转：模拟点击主界面对应按钮（100% 一致）
         window.floatGenerate = async function(clipboardText, btnKey) {
             try {
                 const cfg = floatButtonConfigs[btnKey];
@@ -477,56 +477,64 @@
 
                 const autoJump = getAutoJumpEnabled();
 
-                // 解析商品ID（两种模式都需要）
-                let productId = null;
-                try {
-                    productId = await parseItemIdFromShareText(text);
-                } catch (e) {
-                    console.warn('淘口令解析异常:', e.message);
-                }
-                if (!productId) {
-                    productId = extractProductId(text);
-                }
-                if (!productId) {
-                    const resultArea = document.getElementById('resultArea');
-                    if (resultArea) {
-                        resultArea.innerHTML = '<p style="color: red;">解析失败：无法获取商品ID</p>';
-                    }
-                    return JSON.stringify({ success: false, error: '解析失败：无法获取商品ID' });
-                }
-
-                const fullLink = cfg.fixedString + productId;
-
                 if (autoJump) {
-                    // 勾选了自动跳转：跳过二维码生成，直接复制返回（加快速度）
+                    // 勾选了自动跳转：快速路径，跳过二维码生成
+                    let productId = null;
+                    try {
+                        productId = await parseItemIdFromShareText(text);
+                    } catch (e) {
+                        console.warn('淘口令解析异常:', e.message);
+                    }
+                    if (!productId) {
+                        productId = extractProductId(text);
+                    }
+                    if (!productId) {
+                        return JSON.stringify({ success: false, error: '解析失败：无法获取商品ID' });
+                    }
+                    const fullLink = cfg.fixedString + productId;
                     copyToClipboard(fullLink);
                     incrementUsageCount(btnKey);
-                    if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
-                        const usageData = getUsageData();
-                        window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
-                    }
+                    syncUsageToFloat();
                     return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: true });
                 }
 
-                // 未勾选自动跳转：直接调用 generateQRCodes（与主界面按钮完全一致）
-                await generateQRCodes(cfg.quantity, cfg.fixedString, cfg.autoLabel, btnKey);
-
-                // 同步使用次数到悬浮窗
-                if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
-                    const usageData = getUsageData();
-                    window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
+                // 未勾选自动跳转：找到对应按钮并模拟点击（与主界面完全一致）
+                const btn = document.querySelector(`button[data-btn-key="${btnKey}"]`);
+                if (!btn) {
+                    return JSON.stringify({ success: false, error: '未找到对应按钮' });
                 }
-
+                btn.click();
+                // 等待生成完成（生成完会更新resultArea，简单轮询一下）
+                for (let i = 0; i < 50; i++) {
+                    await new Promise(r => setTimeout(r, 100));
+                    const resultArea = document.getElementById('resultArea');
+                    if (resultArea && resultArea.querySelector('.qr-code-container')) {
+                        break;
+                    }
+                }
+                // 从结果区获取链接
+                const resultArea = document.getElementById('resultArea');
+                const copyBtn = resultArea ? resultArea.querySelector('.action-buttons button') : null;
+                let fullLink = '';
+                if (copyBtn && copyBtn.getAttribute('onclick')) {
+                    const match = copyBtn.getAttribute('onclick').match(/copyToClipboard\('([^']+)'\)/);
+                    if (match) fullLink = match[1];
+                }
+                syncUsageToFloat();
                 return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: false });
             } catch (e) {
                 console.error('floatGenerate error:', e);
-                const resultArea = document.getElementById('resultArea');
-                if (resultArea) {
-                    resultArea.innerHTML = '<p style="color: red;">生成失败：' + (e.message || '未知错误') + '</p>';
-                }
                 return JSON.stringify({ success: false, error: e.message || '生成失败' });
             }
         };
+
+        // 同步使用次数到悬浮窗
+        function syncUsageToFloat() {
+            if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
+                const usageData = getUsageData();
+                window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
+            }
+        }
     </script>
     <script>
         // 全局变量
@@ -1202,6 +1210,19 @@
                 // 增加按钮使用次数
                 if (btnKey) {
                     incrementUsageCount(btnKey);
+                }
+
+                // 同步使用次数到悬浮窗
+                if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
+                    const usageData = getUsageData();
+                    window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
+                }
+
+                // 如果勾选了自动跳转，生成完成后自动跳转淘宝
+                if (getAutoJumpEnabled()) {
+                    setTimeout(function() {
+                        openTaobaoApp(fullContent);
+                    }, 300);
                 }
 
                 // 拼接二维码上方文字：自定义文字 + 两个空格 + 自动标签
