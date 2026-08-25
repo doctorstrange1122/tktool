@@ -377,7 +377,7 @@
             <label class="checkbox-label">
                 <input type="checkbox" id="autoJumpDianTaoCheck">
                 <span class="checkbox-custom"></span>
-                生成二维码后自动跳转天猫
+                生成二维码后自动跳转支付宝
             </label>
         </div>
     </div>
@@ -447,7 +447,7 @@
             return el ? el.checked : false;
         }
 
-        // 是否自动跳转天猫（读取复选框状态）
+        // 是否自动跳转支付宝（读取复选框状态）
         function getAutoJumpDianTaoEnabled() {
             const el = document.getElementById('autoJumpDianTaoCheck');
             return el ? el.checked : false;
@@ -1271,7 +1271,7 @@
                     }, 300);
                 } else if (getAutoJumpDianTaoEnabled()) {
                     setTimeout(function() {
-                        openDianTaoApp(fullContent);
+                        openAlipayApp(fullContent);
                     }, 300);
                 }
 

@@ -858,13 +858,13 @@ public class MainActivity extends Activity {
                 copyLinkToClipboardSync(link);
 
                 if (autoJump || autoJumpDianTao) {
-                    final boolean jumpToDianTao = autoJumpDianTao;
+                    final boolean jumpToAlipay = autoJumpDianTao;
                     // 延迟300ms跳转，确保剪贴板写入完成后再唤起APP
                     webView.postDelayed(new Runnable() {
                         @Override
                         public void run() {
-                            if (jumpToDianTao) {
-                                openQuickDianTao(link);
+                            if (jumpToAlipay) {
+                                openQuickAlipay(link);
                             } else {
                                 openQuickTaobao(link);
                             }
