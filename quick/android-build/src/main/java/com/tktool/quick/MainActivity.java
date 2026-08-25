@@ -974,9 +974,9 @@ public class MainActivity extends Activity {
 
     // 跳转天猫APP（com.tmall.wireless）
     private void openQuickDianTao(String url) {
-        // 第一优先：tmall:// scheme
+        // 第一优先：tmall:// scheme（天猫支持 tmall:// 协议）
         try {
-            String scheme = "tmall://tmallclient/pagesafari?url=" + Uri.encode(url);
+            String scheme = "tmall://" + url.replace("https://", "").replace("http://", "");
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
             intent.setPackage("com.tmall.wireless");
             startActivity(intent);
@@ -985,17 +985,7 @@ public class MainActivity extends Activity {
             // 继续尝试
         }
 
-        // 第二优先：tmall:// 不加包名
-        try {
-            String scheme = "tmall://tmallclient/pagesafari?url=" + Uri.encode(url);
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
-            startActivity(intent);
-            return;
-        } catch (Exception e2) {
-            // 继续尝试
-        }
-
-        // 第三优先：直接 LaunchIntent
+        // 第二优先：直接 LaunchIntent 打开天猫
         try {
             Intent intent = getPackageManager().getLaunchIntentForPackage("com.tmall.wireless");
             if (intent != null) {
@@ -1003,6 +993,16 @@ public class MainActivity extends Activity {
                 startActivity(intent);
                 return;
             }
+        } catch (Exception e2) {
+            // 继续
+        }
+
+        // 第三优先：tmall:// 不加包名
+        try {
+            String scheme = "tmall://" + url.replace("https://", "").replace("http://", "");
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
+            startActivity(intent);
+            return;
         } catch (Exception e3) {
             // 继续
         }

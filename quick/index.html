@@ -1109,7 +1109,7 @@
             }
 
             // 天猫 scheme
-            const dianTaoScheme = `tmall://tmallclient/pagesafari?url=${encodeURIComponent(url)}`;
+            const dianTaoScheme = `tmall://${url.replace('https://', '').replace('http://', '')}`;
             tryScheme(dianTaoScheme);
 
             // 1秒后未打开，尝试直接 Intent
