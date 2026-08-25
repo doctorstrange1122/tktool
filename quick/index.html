@@ -379,6 +379,11 @@
                 <span class="checkbox-custom"></span>
                 生成二维码后自动跳转支付宝
             </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="autoJumpTmallCheck">
+                <span class="checkbox-custom"></span>
+                生成二维码后自动跳转天猫
+            </label>
         </div>
     </div>
 
@@ -453,6 +458,12 @@
             return el ? el.checked : false;
         }
 
+        // 是否自动跳转天猫（读取复选框状态）
+        function getAutoJumpTmallEnabled() {
+            const el = document.getElementById('autoJumpTmallCheck');
+            return el ? el.checked : false;
+        }
+
         // 滚动到结果区
         window.scrollToResult = function() {
             const resultArea = document.getElementById('resultArea');
@@ -488,8 +499,9 @@
 
                 const autoJump = getAutoJumpEnabled();
                 const autoJumpDianTao = getAutoJumpDianTaoEnabled();
+                const autoJumpTmall = getAutoJumpTmallEnabled();
 
-                if (autoJump || autoJumpDianTao) {
+                if (autoJump || autoJumpDianTao || autoJumpTmall) {
                     // 勾选了自动跳转：快速路径，跳过二维码生成
                     let productId = null;
                     try {
@@ -507,7 +519,7 @@
                     copyToClipboard(fullLink);
                     incrementUsageCount(btnKey);
                     syncUsageToFloat();
-                    return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: true, autoJumpDianTao: autoJumpDianTao });
+                    return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: true, autoJumpDianTao: autoJumpDianTao, autoJumpTmall: autoJumpTmall });
                 }
 
                 // 未勾选自动跳转：找到对应按钮并模拟点击（与主界面完全一致）
@@ -1086,19 +1098,20 @@
             }, 1000);
         }
 
-        // 跳转天猫APP（com.tmall.wireless）—— 复选框自动跳转用
-        function openDianTaoApp(url) {
-            // APK环境：直接通过 NativeBridge 调用 Java 层跳转，不走 WebView 加载
+        // 跳转天猫APP（com.tmall.wireless）
+        // 使用 tbopen:// scheme 打开天猫内置浏览器加载指定页面（天猫支持tbopen协议）
+        function openTmallApp(url) {
+            // APK环境：直接通过 NativeBridge 调用 Java 层跳转
             if (window.NativeBridge && window.NativeBridge.openApp) {
                 window.NativeBridge.openApp('com.tmall.wireless', url);
                 return;
             }
 
-            // 浏览器环境：用 scheme 尝试唤起
-            const dianTaoScheme = `tmall://${url.replace('https://', '').replace('http://', '')}`;
+            // 浏览器环境：用 tbopen:// scheme 尝试唤起天猫并打开指定页面
+            var tmallScheme = 'tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=' + encodeURIComponent(url);
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
-            iframe.src = dianTaoScheme;
+            iframe.src = tmallScheme;
             document.body.appendChild(iframe);
             setTimeout(function() {
                 if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
@@ -1275,6 +1288,10 @@
                     setTimeout(function() {
                         openAlipayApp(fullContent);
                     }, 300);
+                } else if (getAutoJumpTmallEnabled()) {
+                    setTimeout(function() {
+                        openTmallApp(fullContent);
+                    }, 300);
                 }
 
                 // 拼接二维码上方文字：自定义文字 + 两个空格 + 自动标签
@@ -1340,6 +1357,7 @@
                     <span class="copy-success">✓ 已复制</span>
                     <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
                     <button onclick="openAlipayApp('${fullContent}')">一键跳转支付宝</button>
+                    <button onclick="openTmallApp('${fullContent}')">一键跳转天猫</button>
                 `;
 
                 qrRight.appendChild(saveTip);

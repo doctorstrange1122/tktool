@@ -847,6 +847,7 @@ public class MainActivity extends Activity {
                 String link = json.optString("link", "");
                 boolean autoJump = json.optBoolean("autoJump", false);
                 boolean autoJumpDianTao = json.optBoolean("autoJumpDianTao", false);
+                boolean autoJumpTmall = json.optBoolean("autoJumpTmall", false);
 
                 // 保存使用次数
                 saveQuickUsageCount(quickBtnKey);
@@ -857,16 +858,18 @@ public class MainActivity extends Activity {
                 // Java层主动复制链接到剪贴板（确保同步写入完成，避免JS异步复制的时序问题）
                 copyLinkToClipboardSync(link);
 
-                if (autoJump || autoJumpDianTao) {
-                    final boolean jumpToAlipay = autoJumpDianTao;
+                if (autoJump || autoJumpDianTao || autoJumpTmall) {
+                    final int jumpTarget = autoJump ? 0 : (autoJumpDianTao ? 1 : 2); // 0=淘宝,1=支付宝,2=天猫
                     // 延迟300ms跳转，确保剪贴板写入完成后再唤起APP
                     webView.postDelayed(new Runnable() {
                         @Override
                         public void run() {
-                            if (jumpToAlipay) {
+                            if (jumpTarget == 0) {
+                                openQuickTaobao(link);
+                            } else if (jumpTarget == 1) {
                                 openQuickAlipay(link);
                             } else {
-                                openQuickTaobao(link);
+                                openQuickDianTao(link);
                             }
                         }
                     }, 300);
@@ -975,19 +978,34 @@ public class MainActivity extends Activity {
     }
 
     // 跳转天猫APP（com.tmall.wireless）
+    // 使用 tbopen:// scheme 打开天猫内置浏览器加载指定页面
     private void openQuickDianTao(String url) {
-        // 第一优先：直接用HTTPS URL打开天猫（如果天猫注册了HTTP/HTTPS的Intent Filter）
+        // 第一优先：tbopen:// scheme（天猫支持淘宝的tbopen协议，可以打开H5页面）
         try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
             intent.setPackage("com.tmall.wireless");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             return;
         } catch (Exception e1) {
-            // 天猫未注册HTTP处理器，继续尝试
+            // 继续尝试
         }
 
-        // 第二优先：直接 LaunchIntent 打开天猫（链接已在剪贴板，用户可粘贴）
+        // 第二优先：tbopen:// 不加包名
+        try {
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e2) {
+            // 继续
+        }
+
+        // 第三优先：直接 LaunchIntent 打开天猫（链接已在剪贴板）
         try {
             Intent intent = getPackageManager().getLaunchIntentForPackage("com.tmall.wireless");
             if (intent != null) {
@@ -996,17 +1014,6 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "链接已复制，请在天猫中粘贴使用", Toast.LENGTH_LONG).show();
                 return;
             }
-        } catch (Exception e2) {
-            // 继续
-        }
-
-        // 第三优先：tmall:// scheme 不带URL参数（仅启动天猫）
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("tmall://"));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-            Toast.makeText(this, "链接已复制，请在天猫中粘贴使用", Toast.LENGTH_LONG).show();
-            return;
         } catch (Exception e3) {
             // 继续
         }
