@@ -1099,7 +1099,6 @@
         }
 
         // 跳转天猫APP（com.tmall.wireless）
-        // 使用 tbopen:// scheme 打开天猫内置浏览器加载指定页面（天猫支持tbopen协议）
         function openTmallApp(url) {
             // APK环境：直接通过 NativeBridge 调用 Java 层跳转
             if (window.NativeBridge && window.NativeBridge.openApp) {
@@ -1107,8 +1106,8 @@
                 return;
             }
 
-            // 浏览器环境：用 tbopen:// scheme 尝试唤起天猫并打开指定页面
-            var tmallScheme = 'tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=' + encodeURIComponent(url);
+            // 浏览器环境：用 tmall:// scheme 尝试唤起天猫并打开指定页面
+            var tmallScheme = 'tmall://' + url.replace('https://', '').replace('http://', '');
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             iframe.src = tmallScheme;

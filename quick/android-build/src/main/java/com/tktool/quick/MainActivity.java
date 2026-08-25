@@ -978,13 +978,11 @@ public class MainActivity extends Activity {
     }
 
     // 跳转天猫APP（com.tmall.wireless）
-    // 使用 tbopen:// scheme 打开天猫内置浏览器加载指定页面
     private void openQuickDianTao(String url) {
-        // 第一优先：tbopen:// scheme（天猫支持淘宝的tbopen协议，可以打开H5页面）
+        // 第一优先：tmall:// + URL路径（天猫自身的scheme，尝试在天猫内置浏览器打开）
         try {
-            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
-                    Uri.encode(url);
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            String tmallScheme = "tmall://" + url.replace("https://", "").replace("http://", "");
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tmallScheme));
             intent.setPackage("com.tmall.wireless");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
@@ -993,19 +991,31 @@ public class MainActivity extends Activity {
             // 继续尝试
         }
 
-        // 第二优先：tbopen:// 不加包名
+        // 第二优先：用HTTPS URL直接打开天猫（如果天猫注册了HTTP/HTTPS的Intent Filter）
         try {
-            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
-                    Uri.encode(url);
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.setPackage("com.tmall.wireless");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             return;
         } catch (Exception e2) {
-            // 继续
+            // 继续尝试
         }
 
-        // 第三优先：直接 LaunchIntent 打开天猫（链接已在剪贴板）
+        // 第三优先：tbopen:// + 天猫包名（尝试用tbopen协议在天猫中打开）
+        try {
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            intent.setPackage("com.tmall.wireless");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e3) {
+            // 继续尝试
+        }
+
+        // 第四优先：直接 LaunchIntent 打开天猫（链接已在剪贴板）
         try {
             Intent intent = getPackageManager().getLaunchIntentForPackage("com.tmall.wireless");
             if (intent != null) {
@@ -1014,7 +1024,7 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "链接已复制，请在天猫中粘贴使用", Toast.LENGTH_LONG).show();
                 return;
             }
-        } catch (Exception e3) {
+        } catch (Exception e4) {
             // 继续
         }
 
