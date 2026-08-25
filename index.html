@@ -179,6 +179,7 @@
             flex-direction: column;
             align-items: center;
             flex-shrink: 0;
+            gap: 8px;
         }
         .qr-code-right {
             display: flex;
@@ -227,6 +228,8 @@
         .action-buttons button:active { transform: scale(0.96); }
         .action-buttons button:nth-child(1) { background: #7a93ac; color: #fff; }
         .action-buttons button:nth-child(3) { background: #6a9a7a; color: #fff; }
+        .action-buttons button:nth-child(4) { background: #c08a5a; color: #fff; }
+        .action-buttons button:nth-child(5) { background: #b5504a; color: #fff; }
         .action-buttons .copy-success {
             color: #6a9a7a; font-size: 12px; line-height: 38px; display: none;
         }
@@ -858,6 +861,95 @@
             }
         }
 
+        // 跳转支付宝APP
+        function openAlipayApp(url) {
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
+
+            // alipays://platformapi/startapp?appId=20000067&url= 支付宝内置浏览器打开H5
+            const alipayScheme = `alipays://platformapi/startapp?appId=20000067&url=${encodeURIComponent(url)}`;
+            const alipayFallback = 'alipays://';
+
+            let appOpened = false;
+            const visibilityHandler = function() {
+                if (document.hidden) { appOpened = true; }
+            };
+            document.addEventListener('visibilitychange', visibilityHandler);
+
+            function tryScheme(schemeUrl) {
+                if (isAPK) {
+                    window.location.href = schemeUrl;
+                } else if (isIOS) {
+                    window.location.href = schemeUrl;
+                } else {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = schemeUrl;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() {
+                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    }, 3000);
+                }
+            }
+
+            // 优先用带URL的scheme打开指定页面，失败回落仅启动支付宝
+            tryScheme(alipayScheme);
+            setTimeout(function() {
+                if (appOpened) {
+                    document.removeEventListener('visibilitychange', visibilityHandler);
+                    return;
+                }
+                tryScheme(alipayFallback);
+            }, 1000);
+        }
+
+        // 跳转天猫APP
+        function openTmallApp(url) {
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
+
+            // tmall:// + URL路径（天猫自身scheme）
+            const tmallScheme = `tmall://${url.replace('https://', '').replace('http://', '')}`;
+            // tbopen:// + URL（天猫支持淘宝的tbopen协议）
+            const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
+
+            let appOpened = false;
+            const visibilityHandler = function() {
+                if (document.hidden) { appOpened = true; }
+            };
+            document.addEventListener('visibilitychange', visibilityHandler);
+
+            function tryScheme(schemeUrl) {
+                if (isAPK) {
+                    window.location.href = schemeUrl;
+                } else if (isIOS) {
+                    window.location.href = schemeUrl;
+                } else {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = schemeUrl;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() {
+                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    }, 3000);
+                }
+            }
+
+            if (isIOS) {
+                tryScheme(tmallScheme);
+            } else {
+                // 安卓/鸿蒙/APK：优先 tmall://，失败回落 tbopen://
+                tryScheme(tmallScheme);
+                setTimeout(function() {
+                    if (appOpened) {
+                        document.removeEventListener('visibilitychange', visibilityHandler);
+                        return;
+                    }
+                    tryScheme(tbopenUrl);
+                }, 1000);
+            }
+        }
+
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
         function createQRCodeWithText(qrCodeDataURL, customText) {
             return new Promise((resolve) => {
@@ -1059,10 +1151,14 @@
                     <button onclick="if(copyToClipboard(window._lastGeneratedLink)){this.nextElementSibling.style.display='inline';setTimeout(()=>this.nextElementSibling.style.display='none',2000)}else{alert('复制失败，请长按下方链接文本手动复制')}">复制链接</button>
                     <span class="copy-success">✓ 已复制</span>
                     <button onclick="openTaobaoApp(window._lastGeneratedLink)">一键跳转淘宝APP</button>
+                    <button onclick="openAlipayApp(window._lastGeneratedLink)">一键跳转支付宝</button>
+                    <button onclick="openTmallApp(window._lastGeneratedLink)">一键跳转天猫</button>
                 `;
 
-                qrRight.appendChild(saveTip);
                 qrRight.appendChild(actionButtons);
+
+                // 左侧：二维码 + 保存提示（保存提示在二维码下方）
+                qrLeft.appendChild(saveTip);
 
                 container.appendChild(qrLeft);
                 container.appendChild(qrRight);
