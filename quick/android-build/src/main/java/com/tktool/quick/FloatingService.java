@@ -103,6 +103,16 @@ public class FloatingService extends Service {
                     }
                 });
             }
+            // 使用次数更新（来自网页/NativeBridge）
+            if (intent.hasExtra("usage_update")) {
+                final String json = intent.getStringExtra("usage_update");
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateUsageFromJson(json);
+                    }
+                });
+            }
         }
         return START_STICKY;
     }
@@ -473,6 +483,27 @@ public class FloatingService extends Service {
         }
         for (String[] cfg : mBtnConfigs) {
             updateBadgeCount(cfg[0], sp.getInt(cfg[2], 0));
+        }
+    }
+
+    // 从JS传来的JSON更新使用次数（同步 localStorage -> SharedPreferences）
+    private void updateUsageFromJson(String json) {
+        if (json == null || json.isEmpty() || mBtnConfigs == null) return;
+        try {
+            SharedPreferences sp = getSharedPreferences("usage_counts", MODE_PRIVATE);
+            SharedPreferences.Editor editor = sp.edit();
+            org.json.JSONObject obj = new org.json.JSONObject(json);
+            for (String[] cfg : mBtnConfigs) {
+                String countKey = cfg[2];
+                if (obj.has(countKey)) {
+                    int count = obj.getInt(countKey);
+                    editor.putInt(countKey, count);
+                    updateBadgeCount(cfg[0], count);
+                }
+            }
+            editor.apply();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

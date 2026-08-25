@@ -437,6 +437,20 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void onUsageUpdate(final String countsJson) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (isFloatingServiceRunning()) {
+                        Intent intent = new Intent(MainActivity.this, FloatingService.class);
+                        intent.putExtra("usage_update", countsJson);
+                        startService(intent);
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
         public boolean isHarmonyOS() {
             try {
                 Class<?> clazz = Class.forName("android.os.SystemProperties");

@@ -530,9 +530,9 @@
 
         // 同步使用次数到悬浮窗
         function syncUsageToFloat() {
-            if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
+            if (window.NativeBridge && window.NativeBridge.onUsageUpdate) {
                 const usageData = getUsageData();
-                window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
+                window.NativeBridge.onUsageUpdate(JSON.stringify(usageData.counts));
             }
         }
     </script>
@@ -1213,10 +1213,7 @@
                 }
 
                 // 同步使用次数到悬浮窗
-                if (window.FloatBridge && window.FloatBridge.onUsageUpdate) {
-                    const usageData = getUsageData();
-                    window.FloatBridge.onUsageUpdate(JSON.stringify(usageData.counts));
-                }
+                syncUsageToFloat();
 
                 // 如果勾选了自动跳转，生成完成后自动跳转淘宝
                 if (getAutoJumpEnabled()) {
