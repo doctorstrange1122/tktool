@@ -451,6 +451,20 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void openApp(final String packageName, final String url) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if ("com.taobao.live".equals(packageName)) {
+                        openQuickDianTao(url);
+                    } else {
+                        openQuickTaobao(url);
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
         public boolean isHarmonyOS() {
             try {
                 Class<?> clazz = Class.forName("android.os.SystemProperties");
@@ -830,6 +844,7 @@ public class MainActivity extends Activity {
             if (success) {
                 String link = json.optString("link", "");
                 boolean autoJump = json.optBoolean("autoJump", false);
+                boolean autoJumpDianTao = json.optBoolean("autoJumpDianTao", false);
 
                 // 保存使用次数
                 saveQuickUsageCount(quickBtnKey);
@@ -840,12 +855,17 @@ public class MainActivity extends Activity {
                 // Java层主动复制链接到剪贴板（确保同步写入完成，避免JS异步复制的时序问题）
                 copyLinkToClipboardSync(link);
 
-                if (autoJump) {
-                    // 延迟300ms跳转，确保剪贴板写入完成后再唤起淘宝
+                if (autoJump || autoJumpDianTao) {
+                    final boolean jumpToDianTao = autoJumpDianTao;
+                    // 延迟300ms跳转，确保剪贴板写入完成后再唤起APP
                     webView.postDelayed(new Runnable() {
                         @Override
                         public void run() {
-                            openQuickTaobao(link);
+                            if (jumpToDianTao) {
+                                openQuickDianTao(link);
+                            } else {
+                                openQuickTaobao(link);
+                            }
                         }
                     }, 300);
                     // 延迟关闭Activity（仅自动跳转时才关闭）
@@ -950,6 +970,44 @@ public class MainActivity extends Activity {
         } catch (Exception e4) {
             Toast.makeText(this, "跳转失败，请检查是否安装淘宝", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // 跳转点淘APP（com.taobao.live）
+    private void openQuickDianTao(String url) {
+        // 第一优先：taobaolive:// scheme
+        try {
+            String scheme = "taobaolive://h5?url=" + Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
+            intent.setPackage("com.taobao.live");
+            startActivity(intent);
+            return;
+        } catch (Exception e1) {
+            // 继续尝试
+        }
+
+        // 第二优先：taobaolive:// 不加包名
+        try {
+            String scheme = "taobaolive://h5?url=" + Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
+            startActivity(intent);
+            return;
+        } catch (Exception e2) {
+            // 继续尝试
+        }
+
+        // 第三优先：直接 LaunchIntent
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage("com.taobao.live");
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                return;
+            }
+        } catch (Exception e3) {
+            // 继续
+        }
+
+        Toast.makeText(this, "跳转失败，请检查是否安装点淘", Toast.LENGTH_SHORT).show();
     }
 
     private void quickFinishWithError(String error) {
