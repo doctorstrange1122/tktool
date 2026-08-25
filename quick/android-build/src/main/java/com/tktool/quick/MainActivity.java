@@ -457,6 +457,8 @@ public class MainActivity extends Activity {
                 public void run() {
                     if ("com.tmall.wireless".equals(packageName)) {
                         openQuickDianTao(url);
+                    } else if ("com.eg.android.AlipayGphone".equals(packageName)) {
+                        openQuickAlipay(url);
                     } else {
                         openQuickTaobao(url);
                     }
@@ -1010,6 +1012,43 @@ public class MainActivity extends Activity {
         }
 
         Toast.makeText(this, "跳转失败，请检查是否安装天猫", Toast.LENGTH_SHORT).show();
+    }
+
+    // 跳转支付宝APP（com.eg.android.AlipayGphone）
+    private void openQuickAlipay(String url) {
+        // 第一优先：alipays:// scheme 打开支付宝
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("alipays://"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e1) {
+            // 继续
+        }
+
+        // 第二优先：直接 LaunchIntent 打开支付宝
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage("com.eg.android.AlipayGphone");
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                return;
+            }
+        } catch (Exception e2) {
+            // 继续
+        }
+
+        // 第三优先：alipay:// scheme
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("alipay://"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e3) {
+            // 继续
+        }
+
+        Toast.makeText(this, "跳转失败，请检查是否安装支付宝", Toast.LENGTH_SHORT).show();
     }
 
     private void quickFinishWithError(String error) {
