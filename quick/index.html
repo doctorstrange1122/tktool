@@ -1106,6 +1106,7 @@
         }
 
         // 跳转支付宝APP（com.eg.android.AlipayGphone）
+        // 使用 alipays://platformapi/startapp?appId=20000067&url= 打开支付宝内置浏览器加载指定页面
         function openAlipayApp(url) {
             // APK环境：直接通过 NativeBridge 调用 Java 层跳转
             if (window.NativeBridge && window.NativeBridge.openApp) {
@@ -1113,10 +1114,11 @@
                 return;
             }
 
-            // 浏览器环境：用 scheme 尝试唤起
+            // 浏览器环境：用 scheme 尝试唤起支付宝并打开指定页面
+            var alipayScheme = 'alipays://platformapi/startapp?appId=20000067&url=' + encodeURIComponent(url);
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
-            iframe.src = 'alipay://';
+            iframe.src = alipayScheme;
             document.body.appendChild(iframe);
             setTimeout(function() {
                 if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
