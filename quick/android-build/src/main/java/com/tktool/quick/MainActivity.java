@@ -455,7 +455,7 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    if ("com.taobao.live".equals(packageName)) {
+                    if ("com.tmall.wireless".equals(packageName)) {
                         openQuickDianTao(url);
                     } else {
                         openQuickTaobao(url);
@@ -972,22 +972,22 @@ public class MainActivity extends Activity {
         }
     }
 
-    // 跳转点淘APP（com.taobao.live）
+    // 跳转天猫APP（com.tmall.wireless）
     private void openQuickDianTao(String url) {
-        // 第一优先：taobaolive:// scheme
+        // 第一优先：tmall:// scheme
         try {
-            String scheme = "taobaolive://h5?url=" + Uri.encode(url);
+            String scheme = "tmall://tmallclient/pagesafari?url=" + Uri.encode(url);
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
-            intent.setPackage("com.taobao.live");
+            intent.setPackage("com.tmall.wireless");
             startActivity(intent);
             return;
         } catch (Exception e1) {
             // 继续尝试
         }
 
-        // 第二优先：taobaolive:// 不加包名
+        // 第二优先：tmall:// 不加包名
         try {
-            String scheme = "taobaolive://h5?url=" + Uri.encode(url);
+            String scheme = "tmall://tmallclient/pagesafari?url=" + Uri.encode(url);
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
             startActivity(intent);
             return;
@@ -997,7 +997,7 @@ public class MainActivity extends Activity {
 
         // 第三优先：直接 LaunchIntent
         try {
-            Intent intent = getPackageManager().getLaunchIntentForPackage("com.taobao.live");
+            Intent intent = getPackageManager().getLaunchIntentForPackage("com.tmall.wireless");
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
@@ -1007,7 +1007,7 @@ public class MainActivity extends Activity {
             // 继续
         }
 
-        Toast.makeText(this, "跳转失败，请检查是否安装点淘", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "跳转失败，请检查是否安装天猫", Toast.LENGTH_SHORT).show();
     }
 
     private void quickFinishWithError(String error) {

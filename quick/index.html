@@ -377,7 +377,7 @@
             <label class="checkbox-label">
                 <input type="checkbox" id="autoJumpDianTaoCheck">
                 <span class="checkbox-custom"></span>
-                生成二维码后自动跳转点淘
+                生成二维码后自动跳转天猫
             </label>
         </div>
     </div>
@@ -447,7 +447,7 @@
             return el ? el.checked : false;
         }
 
-        // 是否自动跳转点淘（读取复选框状态）
+        // 是否自动跳转天猫（读取复选框状态）
         function getAutoJumpDianTaoEnabled() {
             const el = document.getElementById('autoJumpDianTaoCheck');
             return el ? el.checked : false;
@@ -1086,7 +1086,7 @@
             }, 1000);
         }
 
-        // 跳转点淘APP（com.taobao.live）
+        // 跳转天猫APP（com.tmall.wireless）
         function openDianTaoApp(url) {
             let appOpened = false;
             const visibilityHandler = function() {
@@ -1108,8 +1108,8 @@
                 }
             }
 
-            // 点淘 scheme
-            const dianTaoScheme = `taobaolive://h5?url=${encodeURIComponent(url)}`;
+            // 天猫 scheme
+            const dianTaoScheme = `tmall://tmallclient/pagesafari?url=${encodeURIComponent(url)}`;
             tryScheme(dianTaoScheme);
 
             // 1秒后未打开，尝试直接 Intent
@@ -1120,7 +1120,7 @@
                 }
                 // APK环境通过 NativeBridge 打开指定包名
                 if (window.NativeBridge && window.NativeBridge.openApp) {
-                    window.NativeBridge.openApp('com.taobao.live', url);
+                    window.NativeBridge.openApp('com.tmall.wireless', url);
                 }
             }, 1000);
         }
@@ -1339,7 +1339,7 @@
                     <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制链接</button>
                     <span class="copy-success">✓ 已复制</span>
                     <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
-                    <button onclick="openDianTaoApp('${fullContent}')">一键跳转点淘</button>
+                    <button onclick="openDianTaoApp('${fullContent}')">一键跳转天猫</button>
                 `;
 
                 qrRight.appendChild(saveTip);
