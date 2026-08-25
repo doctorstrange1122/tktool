@@ -974,34 +974,36 @@ public class MainActivity extends Activity {
 
     // 跳转天猫APP（com.tmall.wireless）
     private void openQuickDianTao(String url) {
-        // 第一优先：tmall:// scheme（天猫支持 tmall:// 协议）
+        // 第一优先：直接用HTTPS URL打开天猫（如果天猫注册了HTTP/HTTPS的Intent Filter）
         try {
-            String scheme = "tmall://" + url.replace("https://", "").replace("http://", "");
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             intent.setPackage("com.tmall.wireless");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             return;
         } catch (Exception e1) {
-            // 继续尝试
+            // 天猫未注册HTTP处理器，继续尝试
         }
 
-        // 第二优先：直接 LaunchIntent 打开天猫
+        // 第二优先：直接 LaunchIntent 打开天猫（链接已在剪贴板，用户可粘贴）
         try {
             Intent intent = getPackageManager().getLaunchIntentForPackage("com.tmall.wireless");
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
+                Toast.makeText(this, "链接已复制，请在天猫中粘贴使用", Toast.LENGTH_LONG).show();
                 return;
             }
         } catch (Exception e2) {
             // 继续
         }
 
-        // 第三优先：tmall:// 不加包名
+        // 第三优先：tmall:// scheme 不带URL参数（仅启动天猫）
         try {
-            String scheme = "tmall://" + url.replace("https://", "").replace("http://", "");
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("tmall://"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
+            Toast.makeText(this, "链接已复制，请在天猫中粘贴使用", Toast.LENGTH_LONG).show();
             return;
         } catch (Exception e3) {
             // 继续

@@ -1088,41 +1088,21 @@
 
         // 跳转天猫APP（com.tmall.wireless）
         function openDianTaoApp(url) {
-            let appOpened = false;
-            const visibilityHandler = function() {
-                if (document.hidden) { appOpened = true; }
-            };
-            document.addEventListener('visibilitychange', visibilityHandler);
-
-            function tryScheme(schemeUrl) {
-                if (window.NativeBridge || (window.Android && typeof window.Android !== 'undefined')) {
-                    window.location.href = schemeUrl;
-                } else {
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = schemeUrl;
-                    document.body.appendChild(iframe);
-                    setTimeout(function() {
-                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-                    }, 3000);
-                }
+            // APK环境：直接通过 NativeBridge 调用 Java 层跳转，不走 WebView 加载
+            if (window.NativeBridge && window.NativeBridge.openApp) {
+                window.NativeBridge.openApp('com.tmall.wireless', url);
+                return;
             }
 
-            // 天猫 scheme
+            // 浏览器环境：用 scheme 尝试唤起
             const dianTaoScheme = `tmall://${url.replace('https://', '').replace('http://', '')}`;
-            tryScheme(dianTaoScheme);
-
-            // 1秒后未打开，尝试直接 Intent
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = dianTaoScheme;
+            document.body.appendChild(iframe);
             setTimeout(function() {
-                if (appOpened) {
-                    document.removeEventListener('visibilitychange', visibilityHandler);
-                    return;
-                }
-                // APK环境通过 NativeBridge 打开指定包名
-                if (window.NativeBridge && window.NativeBridge.openApp) {
-                    window.NativeBridge.openApp('com.tmall.wireless', url);
-                }
-            }, 1000);
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 3000);
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
