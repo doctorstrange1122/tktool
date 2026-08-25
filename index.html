@@ -1102,7 +1102,7 @@
                 // 长按保存提示
                 const saveTip = document.createElement('div');
                 saveTip.className = 'long-press-tip';
-                saveTip.textContent = '👆 长按二维码图片可保存至图库';
+                saveTip.textContent = '👆 长按二维码可保存';
 
                 // 创建操作按钮区域
                 const actionButtons = document.createElement('div');
@@ -1150,7 +1150,7 @@
                 actionButtons.innerHTML = `
                     <button onclick="if(copyToClipboard(window._lastGeneratedLink)){this.nextElementSibling.style.display='inline';setTimeout(()=>this.nextElementSibling.style.display='none',2000)}else{alert('复制失败，请长按下方链接文本手动复制')}">复制链接</button>
                     <span class="copy-success">✓ 已复制</span>
-                    <button onclick="openTaobaoApp(window._lastGeneratedLink)">一键跳转淘宝APP</button>
+                    <button onclick="openTaobaoApp(window._lastGeneratedLink)">一键跳转淘宝</button>
                     <button onclick="openAlipayApp(window._lastGeneratedLink)">一键跳转支付宝</button>
                     <button onclick="openTmallApp(window._lastGeneratedLink)">一键跳转天猫</button>
                 `;
