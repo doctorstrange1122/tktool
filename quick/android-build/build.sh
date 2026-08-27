@@ -47,7 +47,7 @@ echo "       ZXing jar: $(ls -la "$ZXING_JAR" | awk '{print $5}') bytes"
 # 4. 解压 ZXing
 echo "[3/8] 解压 ZXing classes..."
 cd "$OUT_DIR/zxing_classes"
-jar xf "$ZXING_JAR"
+unzip -q "$ZXING_JAR"
 rm -rf META-INF
 cd "$SCRIPT_DIR"
 echo "       ZXing classes: $(find "$OUT_DIR/zxing_classes" -name '*.class' | wc -l)"

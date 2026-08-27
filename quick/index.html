@@ -324,6 +324,28 @@
 
         /* 页脚 */
         .footer { text-align: center; font-size: 11px; color: #9aa8b6; padding: 16px 0 8px; }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            max-width: 80%;
+            text-align: center;
+        }
+        .toast.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -464,6 +486,25 @@
             return el ? el.checked : false;
         }
 
+        // 三个自动跳转复选框互斥：最多选中一个，勾选新的时自动取消其他
+        function setupAutoJumpCheckboxMutex() {
+            const checks = ['autoJumpCheck', 'autoJumpDianTaoCheck', 'autoJumpTmallCheck'];
+            checks.forEach(function(id, idx) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('change', function() {
+                    if (this.checked) {
+                        checks.forEach(function(otherId) {
+                            if (otherId !== id) {
+                                const other = document.getElementById(otherId);
+                                if (other) other.checked = false;
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
         // 滚动到结果区
         window.scrollToResult = function() {
             const resultArea = document.getElementById('resultArea');
@@ -519,7 +560,7 @@
                     copyToClipboard(fullLink);
                     incrementUsageCount(btnKey);
                     syncUsageToFloat();
-                    return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: true, autoJumpDianTao: autoJumpDianTao, autoJumpTmall: autoJumpTmall });
+                    return JSON.stringify({ success: true, link: fullLink, label: cfg.autoLabel, autoJump: autoJump, autoJumpDianTao: autoJumpDianTao, autoJumpTmall: autoJumpTmall });
                 }
 
                 // 未勾选自动跳转：找到对应按钮并模拟点击（与主界面完全一致）
@@ -628,11 +669,15 @@
             });
         }
 
-        // 页面加载时初始化角标
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initAllBadges);
-        } else {
+        // 页面加载时初始化角标和复选框互斥
+        function initPageFeatures() {
             initAllBadges();
+            setupAutoJumpCheckboxMutex();
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initPageFeatures);
+        } else {
+            initPageFeatures();
         }
 
         // 清空输入框功能
@@ -964,21 +1009,43 @@
             return null;
         }
 
+        // Toast 提示
+        function showToast(message, duration) {
+            duration = duration || 2000;
+            let toast = document.querySelector('.toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.className = 'toast';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = message;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(function() {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
         // 复制文本到剪贴板（兼容iOS Safari + Android WebView）
         function copyToClipboard(text) {
             // APK 环境：使用原生剪贴板（不受 file:// 协议限制）
             if (isInApp && NativeBridge.copyToClipboard) {
                 NativeBridge.copyToClipboard(text);
+                showToast('已复制');
                 return;
             }
 
             // 浏览器环境：优先 Clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).catch(() => {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('已复制');
+                }).catch(() => {
                     _copyFallback(text);
+                    showToast('已复制');
                 });
             } else {
                 _copyFallback(text);
+                showToast('已复制');
             }
         }
 
@@ -1342,24 +1409,24 @@
                 mergedImg.addEventListener('touchend', function() { clearTimeout(longPressTimer); });
                 mergedImg.addEventListener('touchmove', function() { clearTimeout(longPressTimer); });
 
-                // 左侧：二维码
+                // 左侧：二维码 + 长按提示
                 const qrLeft = document.createElement('div');
                 qrLeft.className = 'qr-code-left';
+                qrLeft.style.textAlign = 'center';
                 qrLeft.appendChild(mergedImg);
+                qrLeft.appendChild(saveTip);
 
                 // 右侧：操作区
                 const qrRight = document.createElement('div');
                 qrRight.className = 'qr-code-right';
 
                 actionButtons.innerHTML = `
-                    <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制链接</button>
-                    <span class="copy-success">✓ 已复制</span>
+                    <button onclick="copyToClipboard('${fullContent}')">复制链接</button>
                     <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
                     <button onclick="openAlipayApp('${fullContent}')">一键跳转支付宝</button>
                     <button onclick="openTmallApp('${fullContent}')">一键跳转天猫</button>
                 `;
 
-                qrRight.appendChild(saveTip);
                 qrRight.appendChild(actionButtons);
 
                 container.appendChild(qrLeft);

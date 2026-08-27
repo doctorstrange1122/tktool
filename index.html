@@ -248,6 +248,28 @@
 
         /* 页脚 */
         .footer { text-align: center; font-size: 11px; color: #9aa8b6; padding: 16px 0 8px; }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            max-width: 80%;
+            text-align: center;
+        }
+        .toast.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -690,12 +712,30 @@
             return null;
         }
 
+        // Toast 提示
+        function showToast(message, duration) {
+            duration = duration || 2000;
+            let toast = document.querySelector('.toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.className = 'toast';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = message;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(function() {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
         // 复制文本到剪贴板（兼容iOS Safari + Android WebView）
         // 返回 true=成功, false=失败
         function copyToClipboard(text) {
             // APK 环境：使用原生剪贴板（不受 file:// 协议限制）
             if (isInApp && NativeBridge.copyToClipboard) {
                 NativeBridge.copyToClipboard(text);
+                showToast('已复制');
                 return true;
             }
 
@@ -704,18 +744,25 @@
 
             // iOS Safari：必须同步执行 execCommand，异步 Clipboard API 会丢失用户手势上下文
             if (isIOS) {
-                return _copyFallback(text);
+                const result = _copyFallback(text);
+                if (result) showToast('已复制');
+                return result;
             }
 
             // 非 iOS 浏览器：优先异步 Clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(() => {}).catch(() => {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('已复制');
+                }).catch(() => {
                     _copyFallback(text);
+                    showToast('已复制');
                 });
                 return true;
             }
 
-            return _copyFallback(text);
+            const result = _copyFallback(text);
+            if (result) showToast('已复制');
+            return result;
         }
 
         // iOS Safari 兼容的复制方案（必须在用户手势的同步调用栈中调用）
@@ -1148,8 +1195,7 @@
                 qrRight.className = 'qr-code-right';
 
                 actionButtons.innerHTML = `
-                    <button onclick="if(copyToClipboard(window._lastGeneratedLink)){this.nextElementSibling.style.display='inline';setTimeout(()=>this.nextElementSibling.style.display='none',2000)}else{alert('复制失败，请长按下方链接文本手动复制')}">复制链接</button>
-                    <span class="copy-success">✓ 已复制</span>
+                    <button onclick="copyToClipboard(window._lastGeneratedLink)">复制链接</button>
                     <button onclick="openTaobaoApp(window._lastGeneratedLink)">一键跳转淘宝</button>
                     <button onclick="openAlipayApp(window._lastGeneratedLink)">一键跳转支付宝</button>
                     <button onclick="openTmallApp(window._lastGeneratedLink)">一键跳转天猫</button>
