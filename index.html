@@ -957,14 +957,6 @@
 
             // tmall:// + URL路径（天猫自身scheme）
             const tmallScheme = `tmall://${url.replace('https://', '').replace('http://', '')}`;
-            // tbopen:// + URL（天猫支持淘宝的tbopen协议）
-            const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
-
-            let appOpened = false;
-            const visibilityHandler = function() {
-                if (document.hidden) { appOpened = true; }
-            };
-            document.addEventListener('visibilitychange', visibilityHandler);
 
             function tryScheme(schemeUrl) {
                 if (isAPK) {
@@ -982,19 +974,8 @@
                 }
             }
 
-            if (isIOS) {
-                tryScheme(tmallScheme);
-            } else {
-                // 安卓/鸿蒙/APK：优先 tmall://，失败回落 tbopen://
-                tryScheme(tmallScheme);
-                setTimeout(function() {
-                    if (appOpened) {
-                        document.removeEventListener('visibilitychange', visibilityHandler);
-                        return;
-                    }
-                    tryScheme(tbopenUrl);
-                }, 1000);
-            }
+            // 仅使用 tmall:// scheme，不回落到 tbopen://（会打开淘宝）
+            tryScheme(tmallScheme);
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
