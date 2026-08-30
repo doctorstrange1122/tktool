@@ -999,22 +999,11 @@
         }
 
         // 跳转到淘宝APP（兼容 Android / iOS / 鸿蒙系统）
+        // 跳转淘宝APP（与元宝过肥一致：tbopen://优先，taobao://回落）
         function openTaobaoApp(url) {
-            const ua = navigator.userAgent;
-            const isIOS = /iPhone|iPad|iPod/i.test(ua);
-            const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
-
-            // 鸿蒙检测：APK环境优先用NativeBridge系统属性检测（卓易通也能识别），浏览器用UA检测
-            let isHarmonyOS = false;
-            if (isAPK && window.NativeBridge && typeof window.NativeBridge.isHarmonyOS === 'function') {
-                isHarmonyOS = window.NativeBridge.isHarmonyOS();
-            } else {
-                isHarmonyOS = /HarmonyOS|OpenHarmony|HMSCore/i.test(ua);
-            }
-
-            // tbopen:// + ali.open.nav（鸿蒙上当前页弹出效果好，但安卓上会先回首页）
+            // tbopen:// 是淘宝官方 Deep Link，鸿蒙系统兼容性最好
             const tbopenUrl = `tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=${encodeURIComponent(url)}`;
-            // taobao:// 直接打开（安卓上直接打开目标页，不经过首页）
+            // taobao:// 作为备用 scheme
             const taobaoScheme = `taobao://${url.replace('https://', '')}`;
 
             let appOpened = false;
@@ -1025,14 +1014,11 @@
 
             // 尝试通过 scheme 唤起 APP（APK中由 Java 拦截，浏览器中由系统处理）
             function tryScheme(schemeUrl) {
-                if (isAPK) {
+                if (window.NativeBridge || (window.Android && typeof window.Android !== 'undefined')) {
                     // APK 环境：Java shouldOverrideUrlLoading 会拦截 scheme
                     window.location.href = schemeUrl;
-                } else if (isIOS) {
-                    // iOS Safari：必须用 window.location.href 直接跳转
-                    window.location.href = schemeUrl;
                 } else {
-                    // 安卓/鸿蒙浏览器：用隐藏 iframe 避免页面导航错误
+                    // 浏览器环境：用隐藏 iframe 避免页面导航错误
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
                     iframe.src = schemeUrl;
@@ -1043,30 +1029,17 @@
                 }
             }
 
-            if (isIOS) {
-                // iOS：taobao:// scheme
+            // 第一优先：tbopen://（鸿蒙兼容性最好）
+            tryScheme(tbopenUrl);
+
+            // 1秒后未打开则尝试 taobao://
+            setTimeout(function() {
+                if (appOpened) {
+                    document.removeEventListener('visibilitychange', visibilityHandler);
+                    return;
+                }
                 tryScheme(taobaoScheme);
-            } else if (isHarmonyOS) {
-                // 鸿蒙：优先 tbopen://（当前页弹出效果好），失败回落 taobao://
-                tryScheme(tbopenUrl);
-                setTimeout(function() {
-                    if (appOpened) {
-                        document.removeEventListener('visibilitychange', visibilityHandler);
-                        return;
-                    }
-                    tryScheme(taobaoScheme);
-                }, 1000);
-            } else {
-                // 安卓：优先 taobao:// 直接打开（不经过首页，在当前页弹出），失败回落 tbopen://
-                tryScheme(taobaoScheme);
-                setTimeout(function() {
-                    if (appOpened) {
-                        document.removeEventListener('visibilitychange', visibilityHandler);
-                        return;
-                    }
-                    tryScheme(tbopenUrl);
-                }, 1000);
-            }
+            }, 1000);
         }
 
         // 跳转支付宝APP（com.eg.android.AlipayGphone）
