@@ -952,10 +952,29 @@
 
         // 跳转天猫APP（com.tmall.wireless）
         function openTmallApp(url) {
-            // tmall:// + URL路径（天猫自身scheme）
-            var tmallScheme = 'tmall://' + url.replace('https://', '').replace('http://', '');
-            // 使用 window.location.href 直接跳转，iframe 在部分浏览器无法唤起
-            window.location.href = tmallScheme;
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
+
+            // tmall:// scheme（天猫自身scheme）
+            const tmallScheme = `tmall://${url.replace('https://', '').replace('http://', '')}`;
+
+            function tryScheme(schemeUrl) {
+                if (isAPK) {
+                    window.location.href = schemeUrl;
+                } else if (isIOS) {
+                    window.location.href = schemeUrl;
+                } else {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = schemeUrl;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() {
+                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    }, 3000);
+                }
+            }
+
+            tryScheme(tmallScheme);
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
