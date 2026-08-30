@@ -101,31 +101,45 @@
         .input-section input:focus { outline: none; border-color: #8ba0b5; }
         .input-section input::placeholder { color: #b0bcc8; }
 
-        /* 快速跳转复选框 */
-        .quick-jump-section {
+        /* 自动跳转复选框 */
+        .auto-jump-checkbox {
             margin-top: 10px;
-            padding: 10px 12px;
-            background: #eef5f0;
-            border: 1px solid #c5e0d0;
-            border-radius: 8px;
+            padding: 0 2px;
         }
-        .quick-jump-label {
-            display: flex;
+        .checkbox-label {
+            display: inline-flex;
             align-items: center;
             gap: 8px;
+            font-size: 13px;
+            color: #4a5c6e;
             cursor: pointer;
             user-select: none;
         }
-        .quick-jump-checkbox {
+        .checkbox-label input[type="checkbox"] {
+            display: none;
+        }
+        .checkbox-custom {
             width: 18px;
             height: 18px;
-            accent-color: #6a9a7a;
-            cursor: pointer;
+            border: 2px solid #8ba0b5;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            transition: all 0.2s;
+            flex-shrink: 0;
         }
-        .quick-jump-text {
-            font-size: 14px;
-            color: #4a6b5a;
-            font-weight: 500;
+        .checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+            background: #6a8a9a;
+            border-color: #6a8a9a;
+        }
+        .checkbox-label input[type="checkbox"]:checked + .checkbox-custom::after {
+            content: '✓';
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1;
         }
         .input-row { display: flex; gap: 8px; align-items: stretch; }
         .input-row input { flex: 1; }
@@ -291,10 +305,9 @@
         }
         .action-buttons button:active { transform: scale(0.96); }
         .action-buttons button:nth-child(1) { background: #7a93ac; color: #fff; }
-        .action-buttons button:nth-child(3) { background: #6a9a7a; color: #fff; }
-        .action-buttons .copy-success {
-            color: #6a9a7a; font-size: 12px; line-height: 38px; display: none;
-        }
+        .action-buttons button:nth-child(2) { background: #6a9a7a; color: #fff; }
+        .action-buttons button:nth-child(3) { background: #c08a5a; color: #fff; }
+        .action-buttons button:nth-child(4) { background: #b5504a; color: #fff; }
 
         /* 带文字二维码 */
         .qr-code-with-text {
@@ -310,6 +323,28 @@
 
         /* 页脚 */
         .footer { text-align: center; font-size: 11px; color: #9aa8b6; padding: 16px 0 8px; }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            max-width: 80%;
+            text-align: center;
+        }
+        .toast.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -353,11 +388,22 @@
             <div class="tip-text">粘贴淘口令/分享文本或通过当面分享扫码，自动解析获取商品ID</div>
         </div>
 
-        <!-- 快速跳转复选框 -->
-        <div class="quick-jump-section">
-            <label class="quick-jump-label">
-                <input type="checkbox" id="quickJumpToggle" class="quick-jump-checkbox">
-                <span class="quick-jump-text">生成后自动跳转淘宝</span>
+        <!-- 自动跳转复选框 -->
+        <div class="auto-jump-checkbox">
+            <label class="checkbox-label">
+                <input type="checkbox" id="autoJumpCheck">
+                <span class="checkbox-custom"></span>
+                生成二维码后自动跳转淘宝
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="autoJumpDianTaoCheck">
+                <span class="checkbox-custom"></span>
+                生成二维码后自动跳转支付宝
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="autoJumpTmallCheck">
+                <span class="checkbox-custom"></span>
+                生成二维码后自动跳转天猫
             </label>
         </div>
     </div>
@@ -462,30 +508,52 @@
             });
         }
 
-        // 页面加载时初始化角标
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                initAllBadges();
-                initQuickJumpToggle();
+        // 三个自动跳转复选框互斥：最多选中一个，勾选新的时自动取消其他
+        function setupAutoJumpCheckboxMutex() {
+            const checks = ['autoJumpCheck', 'autoJumpDianTaoCheck', 'autoJumpTmallCheck'];
+            checks.forEach(function(id, idx) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('change', function() {
+                    if (this.checked) {
+                        checks.forEach(function(otherId) {
+                            if (otherId !== id) {
+                                const other = document.getElementById(otherId);
+                                if (other) other.checked = false;
+                            }
+                        });
+                    }
+                });
             });
-        } else {
-            initAllBadges();
-            initQuickJumpToggle();
         }
 
-        // 快速跳转复选框初始化与状态保存
-        function initQuickJumpToggle() {
-            const toggle = document.getElementById('quickJumpToggle');
-            if (!toggle) return;
-            // 从localStorage读取状态
-            const saved = localStorage.getItem('quickJumpEnabled');
-            if (saved === 'true') {
-                toggle.checked = true;
-            }
-            // 监听变化，保存状态
-            toggle.addEventListener('change', function() {
-                localStorage.setItem('quickJumpEnabled', toggle.checked ? 'true' : 'false');
-            });
+        // 是否自动跳转（读取复选框状态）
+        function getAutoJumpEnabled() {
+            const el = document.getElementById('autoJumpCheck');
+            return el ? el.checked : false;
+        }
+
+        // 是否自动跳转支付宝
+        function getAutoJumpDianTaoEnabled() {
+            const el = document.getElementById('autoJumpDianTaoCheck');
+            return el ? el.checked : false;
+        }
+
+        // 是否自动跳转天猫
+        function getAutoJumpTmallEnabled() {
+            const el = document.getElementById('autoJumpTmallCheck');
+            return el ? el.checked : false;
+        }
+
+        // 页面加载时初始化角标和复选框互斥
+        function initPageFeatures() {
+            initAllBadges();
+            setupAutoJumpCheckboxMutex();
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initPageFeatures);
+        } else {
+            initPageFeatures();
         }
 
         // 清空输入框功能
@@ -817,21 +885,43 @@
             return null;
         }
 
+        // Toast 提示
+        function showToast(message, duration) {
+            duration = duration || 2000;
+            let toast = document.querySelector('.toast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.className = 'toast';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = message;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(function() {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
         // 复制文本到剪贴板（兼容iOS Safari + Android WebView）
         function copyToClipboard(text) {
             // APK 环境：使用原生剪贴板（不受 file:// 协议限制）
             if (isInApp && NativeBridge.copyToClipboard) {
                 NativeBridge.copyToClipboard(text);
+                showToast('已复制');
                 return;
             }
 
             // 浏览器环境：优先 Clipboard API
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).catch(() => {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('已复制');
+                }).catch(() => {
                     _copyFallback(text);
+                    showToast('已复制');
                 });
             } else {
                 _copyFallback(text);
+                showToast('已复制');
             }
         }
 
@@ -979,7 +1069,68 @@
             }
         }
 
-        // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
+        // 跳转支付宝APP（com.eg.android.AlipayGphone）
+        function openAlipayApp(url) {
+            // APK环境：直接通过 NativeBridge 调用 Java 层跳转
+            if (window.NativeBridge && window.NativeBridge.openApp) {
+                window.NativeBridge.openApp('com.eg.android.AlipayGphone', url);
+                return;
+            }
+
+            // 浏览器环境：用 scheme 尝试唤起支付宝并打开指定页面
+            var alipayScheme = 'alipays://platformapi/startapp?appId=20000067&url=' + encodeURIComponent(url);
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = alipayScheme;
+            document.body.appendChild(iframe);
+            setTimeout(function() {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 3000);
+        }
+
+        // 跳转天猫APP（com.tmall.wireless）
+        function openTmallApp(url) {
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
+
+            function tryScheme(schemeUrl) {
+                if (isAPK) {
+                    window.location.href = schemeUrl;
+                } else if (isIOS) {
+                    window.location.href = schemeUrl;
+                } else {
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = schemeUrl;
+                    document.body.appendChild(iframe);
+                    setTimeout(function() {
+                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                    }, 3000);
+                }
+            }
+
+            if (isAPK) {
+                copyToClipboard(url);
+                tryScheme('tmall://tmallclient/');
+                showToast('链接已复制，请在天猫中粘贴使用');
+            } else if (isIOS) {
+                copyToClipboard(url);
+                tryScheme('tmall://tmallclient/');
+                showToast('链接已复制，请在天猫中粘贴使用');
+            } else {
+                try {
+                    var urlObj = new URL(url);
+                    var intentUrl = 'intent://' + urlObj.host + urlObj.pathname + urlObj.search +
+                        '#Intent;scheme=https;package=com.tmall.wireless;S.browser_fallback_url=' +
+                        encodeURIComponent(url) + ';end';
+                    tryScheme(intentUrl);
+                } catch(e) {
+                    copyToClipboard(url);
+                    tryScheme('tmall://tmallclient/');
+                    showToast('链接已复制，请在天猫中粘贴使用');
+                }
+            }
+        }
         function createQRCodeWithText(qrCodeDataURL, customText) {
             return new Promise((resolve) => {
                 const qrCodeImg = new Image();
@@ -1166,22 +1317,24 @@
                 mergedImg.addEventListener('touchend', function() { clearTimeout(longPressTimer); });
                 mergedImg.addEventListener('touchmove', function() { clearTimeout(longPressTimer); });
 
-                // 左侧：二维码
+                // 左侧：二维码 + 长按提示
                 const qrLeft = document.createElement('div');
                 qrLeft.className = 'qr-code-left';
+                qrLeft.style.textAlign = 'center';
                 qrLeft.appendChild(mergedImg);
+                qrLeft.appendChild(saveTip);
 
                 // 右侧：操作区
                 const qrRight = document.createElement('div');
                 qrRight.className = 'qr-code-right';
 
                 actionButtons.innerHTML = `
-                    <button onclick="copyToClipboard('${fullContent}'); this.nextElementSibling.style.display='inline'; setTimeout(() => this.nextElementSibling.style.display='none', 2000)">复制链接</button>
-                    <span class="copy-success">✓ 已复制</span>
-                    <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝APP</button>
+                    <button onclick="copyToClipboard('${fullContent}')">复制链接</button>
+                    <button onclick="openTaobaoApp('${fullContent}')">一键跳转淘宝</button>
+                    <button onclick="openAlipayApp('${fullContent}')">一键跳转支付宝</button>
+                    <button onclick="openTmallApp('${fullContent}')">一键跳转天猫</button>
                 `;
 
-                qrRight.appendChild(saveTip);
                 qrRight.appendChild(actionButtons);
 
                 container.appendChild(qrLeft);
@@ -1191,12 +1344,13 @@
                 resultArea.innerHTML = '';
                 resultArea.appendChild(container);
 
-                // 快速跳转：生成成功后自动跳转淘宝
-                const quickJumpToggle = document.getElementById('quickJumpToggle');
-                if (quickJumpToggle && quickJumpToggle.checked) {
-                    setTimeout(function() {
-                        openTaobaoApp(fullContent);
-                    }, 300);
+                // 自动跳转：根据复选框选择跳转对应APP
+                if (getAutoJumpEnabled()) {
+                    setTimeout(function() { openTaobaoApp(fullContent); }, 300);
+                } else if (getAutoJumpDianTaoEnabled()) {
+                    setTimeout(function() { openAlipayApp(fullContent); }, 300);
+                } else if (getAutoJumpTmallEnabled()) {
+                    setTimeout(function() { openTmallApp(fullContent); }, 300);
                 }
             } catch (error) {
                 console.error('生成失败:', error);
