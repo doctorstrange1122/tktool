@@ -955,9 +955,6 @@
             const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
             const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
 
-            // tmall:// scheme 仅用于启动天猫客户端（不支持直接拼接URL路径）
-            const tmallScheme = 'tmall://tmallclient/';
-
             function tryScheme(schemeUrl) {
                 if (isAPK) {
                     window.location.href = schemeUrl;
@@ -974,10 +971,32 @@
                 }
             }
 
-            // 复制链接到剪贴板，然后启动天猫
-            copyToClipboard(url);
-            tryScheme(tmallScheme);
-            showToast('链接已复制，请在天猫中粘贴使用');
+            if (isAPK) {
+                // APK 环境：使用 tmall:// scheme 启动天猫
+                copyToClipboard(url);
+                tryScheme('tmall://tmallclient/');
+                showToast('链接已复制，请在天猫中粘贴使用');
+            } else if (isIOS) {
+                // iOS：tmall:// scheme 仅启动天猫，链接已复制
+                copyToClipboard(url);
+                tryScheme('tmall://tmallclient/');
+                showToast('链接已复制，请在天猫中粘贴使用');
+            } else {
+                // 安卓浏览器：用 intent URI 指定天猫包名直接打开 URL
+                // intent://HOST/PATH?QUERY#Intent;scheme=https;package=com.tmall.wireless;end
+                try {
+                    var urlObj = new URL(url);
+                    var intentUrl = 'intent://' + urlObj.host + urlObj.pathname + urlObj.search +
+                        '#Intent;scheme=https;package=com.tmall.wireless;S.browser_fallback_url=' +
+                        encodeURIComponent(url) + ';end';
+                    tryScheme(intentUrl);
+                } catch(e) {
+                    // URL 解析失败，回退到启动天猫
+                    copyToClipboard(url);
+                    tryScheme('tmall://tmallclient/');
+                    showToast('链接已复制，请在天猫中粘贴使用');
+                }
+            }
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
