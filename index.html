@@ -954,13 +954,8 @@
         function openTmallApp(url) {
             // tmall:// + URL路径（天猫自身scheme）
             var tmallScheme = 'tmall://' + url.replace('https://', '').replace('http://', '');
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = tmallScheme;
-            document.body.appendChild(iframe);
-            setTimeout(function() {
-                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-            }, 3000);
+            // 使用 window.location.href 直接跳转，iframe 在部分浏览器无法唤起
+            window.location.href = tmallScheme;
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
