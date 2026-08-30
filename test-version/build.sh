@@ -77,13 +77,11 @@ echo "       资源链接完成"
 # 6. 编译 Java
 echo "[5/8] 编译 Java 源码..."
 javac -source 1.8 -target 1.8 \
-    -bootclasspath /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar \
     -cp "$ANDROID_JAR:$ZXING_JAR" \
     -sourcepath "$OUT_DIR/gen" \
     -d "$OUT_DIR/java_classes" \
     "$SRC"/java/com/tktool/guofei/*.java "$OUT_DIR"/gen/com/tktool/guofei/R.java 2>/dev/null || \
 javac -source 1.8 -target 1.8 \
-    -bootclasspath /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar \
     -cp "$ANDROID_JAR:$ZXING_JAR" \
     -d "$OUT_DIR/java_classes" \
     "$SRC"/java/com/tktool/guofei/*.java
