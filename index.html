@@ -950,32 +950,17 @@
             }, 1000);
         }
 
-        // 跳转天猫APP
+        // 跳转天猫APP（com.tmall.wireless）
         function openTmallApp(url) {
-            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-            const isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
-
             // tmall:// + URL路径（天猫自身scheme）
-            const tmallScheme = `tmall://${url.replace('https://', '').replace('http://', '')}`;
-
-            function tryScheme(schemeUrl) {
-                if (isAPK) {
-                    window.location.href = schemeUrl;
-                } else if (isIOS) {
-                    window.location.href = schemeUrl;
-                } else {
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.src = schemeUrl;
-                    document.body.appendChild(iframe);
-                    setTimeout(function() {
-                        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-                    }, 3000);
-                }
-            }
-
-            // 仅使用 tmall:// scheme，不回落到 tbopen://（会打开淘宝）
-            tryScheme(tmallScheme);
+            var tmallScheme = 'tmall://' + url.replace('https://', '').replace('http://', '');
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = tmallScheme;
+            document.body.appendChild(iframe);
+            setTimeout(function() {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 3000);
         }
 
         // 创建带文字的二维码图片（紧凑布局，减少文字区域上下空白）
