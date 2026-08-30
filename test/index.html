@@ -1110,6 +1110,11 @@
             }
 
             if (isAPK) {
+                // APK环境：通过 NativeBridge 调用 Java 层跳转天猫
+                if (window.NativeBridge && window.NativeBridge.openApp) {
+                    window.NativeBridge.openApp('com.tmall.wireless', url);
+                    return;
+                }
                 copyToClipboard(url);
                 tryScheme('tmall://tmallclient/');
                 showToast('链接已复制，请在天猫中粘贴使用');

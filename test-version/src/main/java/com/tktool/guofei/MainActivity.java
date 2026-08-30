@@ -262,7 +262,22 @@ public class MainActivity extends Activity {
                     ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                     ClipData clip = ClipData.newPlainText("tktool", text);
                     clipboard.setPrimaryClip(clip);
-                    Toast.makeText(MainActivity.this, "已复制到剪贴板", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void openApp(final String packageName, final String url) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if ("com.tmall.wireless".equals(packageName)) {
+                        openGuofeiTmall(url);
+                    } else if ("com.eg.android.AlipayGphone".equals(packageName)) {
+                        openGuofeiAlipay(url);
+                    } else {
+                        openGuofeiTaobao(url);
+                    }
                 }
             });
         }
@@ -592,5 +607,109 @@ public class MainActivity extends Activity {
         } else {
             super.onBackPressed();
         }
+    }
+
+    // 跳转淘宝APP
+    private void openGuofeiTaobao(String url) {
+        try {
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            intent.setPackage("com.taobao.taobao");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e1) { }
+        try {
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e2) { }
+        try {
+            String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
+            intent.setPackage("com.taobao.taobao");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e3) { }
+        try {
+            String taobaoUrl = "taobao://" + url.replace("https://", "").replace("http://", "");
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(taobaoUrl));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e4) {
+            Toast.makeText(this, "跳转失败，请检查是否安装淘宝", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // 跳转天猫APP
+    private void openGuofeiTmall(String url) {
+        try {
+            String tmallScheme = "tmall://" + url.replace("https://", "").replace("http://", "");
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tmallScheme));
+            intent.setPackage("com.tmall.wireless");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e1) { }
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.setPackage("com.tmall.wireless");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e2) { }
+        try {
+            String tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" +
+                    Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(tbopen));
+            intent.setPackage("com.tmall.wireless");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e3) { }
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage("com.tmall.wireless");
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                Toast.makeText(this, "链接已复制，请在天猫中粘贴使用", Toast.LENGTH_LONG).show();
+                return;
+            }
+        } catch (Exception e4) { }
+        Toast.makeText(this, "跳转失败，请检查是否安装天猫", Toast.LENGTH_SHORT).show();
+    }
+
+    // 跳转支付宝APP
+    private void openGuofeiAlipay(String url) {
+        try {
+            String alipayScheme = "alipays://platformapi/startapp?appId=20000067&url=" + Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(alipayScheme));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e1) { }
+        try {
+            String alipayScheme = "alipay://platformapi/startapp?appId=20000067&url=" + Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(alipayScheme));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
+        } catch (Exception e2) { }
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage("com.eg.android.AlipayGphone");
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                Toast.makeText(this, "链接已复制，请在支付宝中粘贴使用", Toast.LENGTH_LONG).show();
+                return;
+            }
+        } catch (Exception e3) { }
+        Toast.makeText(this, "跳转失败，请检查是否安装支付宝", Toast.LENGTH_SHORT).show();
     }
 }
