@@ -402,6 +402,22 @@
             });
         }
 
+        // 零点自动刷新角标：后台运行跨天后自动清零
+        var _badgeCurrentDate = getTodayStr();
+        function checkAndRefreshBadges() {
+            var today = getTodayStr();
+            if (today !== _badgeCurrentDate) {
+                _badgeCurrentDate = today;
+                initAllBadges();
+            }
+        }
+        // 每分钟检查一次日期变化
+        setInterval(checkAndRefreshBadges, 60000);
+        // 页面从后台切回前台时也检查一次
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) checkAndRefreshBadges();
+        });
+
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initAllBadges);
         } else {
