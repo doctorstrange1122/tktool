@@ -174,11 +174,23 @@ public class MainActivity extends Activity {
                     url.startsWith("tbopen://")) {
                     try {
                         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                        // alipays:// 指定支付宝包名，防止小米MIUI被淘宝拦截
+                        if (url.startsWith("alipays://") || url.startsWith("alipay://")) {
+                            intent.setPackage("com.eg.android.AlipayGphone");
+                        }
                         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
                         return true;
                     } catch (Exception e) {
-                        return false;
+                        // 指定包名失败时尝试不指定包名
+                        try {
+                            Intent intent2 = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            intent2.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent2);
+                            return true;
+                        } catch (Exception e2) {
+                            return false;
+                        }
                     }
                 }
                 return false;
@@ -1038,6 +1050,7 @@ public class MainActivity extends Activity {
         try {
             String alipayScheme = "alipays://platformapi/startapp?appId=20000067&url=" + Uri.encode(url);
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(alipayScheme));
+            intent.setPackage("com.eg.android.AlipayGphone");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             return;
@@ -1045,9 +1058,9 @@ public class MainActivity extends Activity {
             // 继续
         }
 
-        // 第二优先：alipay:// 打开支付宝内置浏览器并加载指定页面
+        // 第二优先：alipays:// 不加包名（部分系统需隐式Intent）
         try {
-            String alipayScheme = "alipay://platformapi/startapp?appId=20000067&url=" + Uri.encode(url);
+            String alipayScheme = "alipays://platformapi/startapp?appId=20000067&url=" + Uri.encode(url);
             Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(alipayScheme));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
@@ -1056,15 +1069,14 @@ public class MainActivity extends Activity {
             // 继续
         }
 
-        // 第三优先：直接 LaunchIntent 打开支付宝（链接已在剪贴板）
+        // 第三优先：alipay:// 打开支付宝内置浏览器并加载指定页面
         try {
-            Intent intent = getPackageManager().getLaunchIntentForPackage("com.eg.android.AlipayGphone");
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-                Toast.makeText(this, "链接已复制，请在支付宝中粘贴使用", Toast.LENGTH_LONG).show();
-                return;
-            }
+            String alipayScheme = "alipay://platformapi/startapp?appId=20000067&url=" + Uri.encode(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(alipayScheme));
+            intent.setPackage("com.eg.android.AlipayGphone");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return;
         } catch (Exception e3) {
             // 继续
         }
