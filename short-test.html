@@ -12,64 +12,59 @@ body {
     min-height: 100vh;
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #f5f5f5;
+    background: #f0f2f5;
 }
 .card {
     background: white;
-    padding: 40px;
+    padding: 30px;
     border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     text-align: center;
-    max-width: 400px;
+    width: 340px;
 }
-h2 { margin: 0 0 24px 0; color: #333; font-size: 20px; }
-.qr-wrap {
-    background: #fff;
-    padding: 20px;
-    border: 2px solid #eee;
+h2 { margin: 0 0 20px 0; color: #333; font-size: 18px; }
+.qr-box {
+    background: #ffffff;
+    padding: 15px;
+    border: 3px solid #ff6b00;
     border-radius: 12px;
     display: inline-block;
-    margin: 10px 0 20px 0;
+    margin: 10px 0;
 }
-.qr-wrap img {
-    width: 280px;
-    height: 280px;
+.qr-box img {
+    width: 260px;
+    height: 260px;
     display: block;
 }
 .short-url {
-    background: #f0f0f0;
-    padding: 12px 16px;
+    background: #fff7ed;
+    padding: 12px;
     border-radius: 8px;
     font-size: 14px;
-    color: #333;
+    color: #c2410c;
     word-break: break-all;
     margin: 15px 0;
-    font-family: monospace;
+    font-weight: bold;
+    border: 1px solid #fed7aa;
 }
-.info {
+.tip {
     font-size: 13px;
     color: #666;
-    margin-top: 15px;
-    line-height: 1.8;
-    text-align: left;
-    background: #f9f9f9;
-    padding: 12px 15px;
-    border-radius: 8px;
+    margin-top: 10px;
+    line-height: 1.6;
 }
 </style>
 </head>
 <body>
 <div class="card">
-    <h2>伪短链测试二维码</h2>
-    <div class="qr-wrap">
-        <img src="/short-qr.png" alt="短链二维码">
+    <h2>📱 伪短链测试二维码</h2>
+    <div class="qr-box">
+        <img src="data:image/png;base64,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" alt="短链二维码">
     </div>
     <div class="short-url">https://tktool.pages.dev/s/67bt9g</div>
-    <div class="info">
-        <strong>测试方式：</strong><br>
-        1. 手机相机扫码 → 看能否跳转淘宝<br>
-        2. 淘宝APP扫码 → 看能否识别打开<br>
-        3. 复制链接微信打开 → 看能否跳转
+    <div class="tip">
+        用手机相机 / 淘宝 / 微信扫码测试<br>
+        短链有效期30天
     </div>
 </div>
 </body>
