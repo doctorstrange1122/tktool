@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>伪短链测试</title>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<title>伪短链二维码测试</title>
 <style>
 body {
     display: flex;
@@ -17,48 +16,61 @@ body {
 }
 .card {
     background: white;
-    padding: 30px;
+    padding: 40px;
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.08);
     text-align: center;
+    max-width: 400px;
 }
-h2 { margin: 0 0 20px 0; color: #333; font-size: 18px; }
-#qrcode { margin: 20px 0; }
-#qrcode canvas { border-radius: 8px; }
+h2 { margin: 0 0 24px 0; color: #333; font-size: 20px; }
+.qr-wrap {
+    background: #fff;
+    padding: 20px;
+    border: 2px solid #eee;
+    border-radius: 12px;
+    display: inline-block;
+    margin: 10px 0 20px 0;
+}
+.qr-wrap img {
+    width: 280px;
+    height: 280px;
+    display: block;
+}
 .short-url {
     background: #f0f0f0;
-    padding: 10px 15px;
+    padding: 12px 16px;
     border-radius: 8px;
     font-size: 14px;
     color: #333;
     word-break: break-all;
     margin: 15px 0;
+    font-family: monospace;
 }
 .info {
     font-size: 13px;
     color: #666;
     margin-top: 15px;
-    line-height: 1.6;
+    line-height: 1.8;
+    text-align: left;
+    background: #f9f9f9;
+    padding: 12px 15px;
+    border-radius: 8px;
 }
 </style>
 </head>
 <body>
 <div class="card">
     <h2>伪短链测试二维码</h2>
-    <div id="qrcode"></div>
-    <div class="short-url" id="shortUrl">https://tktool.pages.dev/s/67bt9g</div>
+    <div class="qr-wrap">
+        <img src="/short-qr.png" alt="短链二维码">
+    </div>
+    <div class="short-url">https://tktool.pages.dev/s/67bt9g</div>
     <div class="info">
-        短链有效期：30天<br>
-        请用手机相机或淘宝扫码测试
+        <strong>测试方式：</strong><br>
+        1. 手机相机扫码 → 看能否跳转淘宝<br>
+        2. 淘宝APP扫码 → 看能否识别打开<br>
+        3. 复制链接微信打开 → 看能否跳转
     </div>
 </div>
-<script>
-const shortUrl = 'https://tktool.pages.dev/s/67bt9g';
-QRCode.toCanvas(document.getElementById('qrcode'), shortUrl, {
-    width: 256,
-    margin: 2,
-    color: { dark: '#000000', light: '#ffffff' }
-});
-</script>
 </body>
 </html>
