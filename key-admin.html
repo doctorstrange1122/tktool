@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>密钥管理后台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 16px;
+            color: #333;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+
+        /* 登录页 */
+        .login-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 30px 24px;
+            margin-top: 60px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .login-card h1 { font-size: 22px; text-align: center; margin-bottom: 20px; color: #4a5568; }
+        .login-card input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .login-card input:focus { border-color: #667eea; }
+        .login-card button {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .login-card button:active { transform: scale(0.98); }
+        .error-msg { color: #e53e3e; font-size: 13px; text-align: center; margin-top: 10px; min-height: 18px; }
+
+        /* 管理后台 */
+        .admin-panel { display: none; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            color: #fff;
+        }
+        .header h1 { font-size: 20px; font-weight: 700; }
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .stat-item {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        .stat-num { font-size: 24px; font-weight: 700; color: #667eea; }
+        .stat-label { font-size: 11px; color: #718096; margin-top: 4px; }
+
+        /* 生成区域 */
+        .generate-section h3 { font-size: 15px; margin-bottom: 12px; color: #4a5568; }
+        .generate-row { display: flex; gap: 10px; align-items: center; }
+        .generate-row input {
+            flex: 1;
+            padding: 12px 14px;
+            font-size: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            outline: none;
+        }
+        .generate-row input:focus { border-color: #667eea; }
+        .generate-row button {
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        /* 密钥列表 */
+        .keys-section h3 {
+            font-size: 15px;
+            margin-bottom: 12px;
+            color: #4a5568;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .export-btn {
+            font-size: 12px;
+            padding: 6px 12px;
+            background: #edf2f7;
+            color: #4a5568;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .keys-table { width: 100%; font-size: 13px; }
+        .keys-table th {
+            text-align: left;
+            padding: 8px 6px;
+            border-bottom: 2px solid #e2e8f0;
+            color: #718096;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .keys-table td {
+            padding: 10px 6px;
+            border-bottom: 1px solid #f0f4f8;
+            font-family: "SF Mono", Menlo, monospace;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: -apple-system, sans-serif;
+        }
+        .status-active { background: #c6f6d5; color: #22543d; }
+        .status-unused { background: #bee3f8; color: #2a4365; }
+        .status-revoked { background: #fed7d7; color: #742a2a; }
+        .revoke-btn {
+            padding: 4px 10px;
+            font-size: 11px;
+            background: #fed7d7;
+            color: #c53030;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .revoke-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .date-text { font-family: -apple-system, sans-serif; font-size: 11px; color: #a0aec0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 登录页 -->
+        <div id="loginView" class="login-card">
+            <h1>🔐 密钥管理后台</h1>
+            <input type="password" id="passwordInput" placeholder="请输入管理员密码" autocomplete="off">
+            <button onclick="adminLogin()">登录</button>
+            <div class="error-msg" id="loginError"></div>
+        </div>
+
+        <!-- 管理后台 -->
+        <div id="adminView" class="admin-panel">
+            <div class="header">
+                <h1>🔐 密钥管理</h1>
+                <button class="logout-btn" onclick="adminLogout()">退出</button>
+            </div>
+
+            <!-- 统计 -->
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-num" id="statTotal">0</div>
+                    <div class="stat-label">总数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" id="statActivated">0</div>
+                    <div class="stat-label">已激活</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" id="statUnused">0</div>
+                    <div class="stat-label">未使用</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" id="statRevoked">0</div>
+                    <div class="stat-label">已作废</div>
+                </div>
+            </div>
+
+            <!-- 生成密钥 -->
+            <div class="card generate-section">
+                <h3>生成新密钥</h3>
+                <div class="generate-row">
+                    <input type="number" id="generateCount" value="20" min="1" max="200">
+                    <button onclick="generateKeys()">生成</button>
+                </div>
+            </div>
+
+            <!-- 密钥列表 -->
+            <div class="card keys-section">
+                <h3>
+                    <span>密钥列表</span>
+                    <button class="export-btn" onclick="exportKeys()">导出未使用</button>
+                </h3>
+                <div style="overflow-x: auto;">
+                    <table class="keys-table">
+                        <thead>
+                            <tr>
+                                <th>密钥</th>
+                                <th>状态</th>
+                                <th>激活时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="keysTableBody">
+                            <tr><td colspan="4" style="text-align:center; color:#a0aec0; padding:20px;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const API_BASE = location.origin + '/api/key';
+let adminPwd = '';
+
+// 初始化：检查是否已登录
+window.onload = function() {
+    const saved = localStorage.getItem('admin_pwd');
+    if (saved) {
+        adminPwd = saved;
+        showAdminPanel();
+        loadKeys();
+    }
+
+    // 回车登录
+    document.getElementById('passwordInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') adminLogin();
+    });
+};
+
+function adminLogin() {
+    const pwd = document.getElementById('passwordInput').value;
+    if (!pwd) return;
+
+    adminPwd = pwd;
+    // 用list接口验证密码
+    fetch(API_BASE + '/admin/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword: pwd })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            localStorage.setItem('admin_pwd', pwd);
+            showAdminPanel();
+            renderData(data);
+        } else {
+            document.getElementById('loginError').textContent = data.error || '登录失败';
+        }
+    })
+    .catch(e => {
+        document.getElementById('loginError').textContent = '网络错误：' + e.message;
+    });
+}
+
+function adminLogout() {
+    localStorage.removeItem('admin_pwd');
+    adminPwd = '';
+    location.reload();
+}
+
+function showAdminPanel() {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('adminView').style.display = 'block';
+}
+
+function loadKeys() {
+    fetch(API_BASE + '/admin/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword: adminPwd })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            renderData(data);
+        } else {
+            alert(data.error || '加载失败');
+            if (data.error === '密码错误') adminLogout();
+        }
+    })
+    .catch(e => alert('网络错误：' + e.message));
+}
+
+function renderData(data) {
+    // 统计
+    document.getElementById('statTotal').textContent = data.stats.total;
+    document.getElementById('statActivated').textContent = data.stats.activated;
+    document.getElementById('statUnused').textContent = data.stats.unused;
+    document.getElementById('statRevoked').textContent = data.stats.revoked;
+
+    // 列表
+    const tbody = document.getElementById('keysTableBody');
+    if (!data.keys || data.keys.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#a0aec0; padding:20px;">暂无密钥</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.keys.map(k => {
+        let statusClass, statusText;
+        if (k.revoked) { statusClass = 'status-revoked'; statusText = '已作废'; }
+        else if (k.activated) { statusClass = 'status-active'; statusText = '已激活'; }
+        else { statusClass = 'status-unused'; statusText = '未使用'; }
+
+        const dateStr = k.activatedAt ? formatDate(k.activatedAt) : '-';
+        const canRevoke = !k.revoked;
+
+        return `<tr>
+            <td>${k.key}</td>
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            <td><span class="date-text">${dateStr}</span></td>
+            <td>${canRevoke ? `<button class="revoke-btn" onclick="revokeKey('${k.key}')">作废</button>` : '-'}</td>
+        </tr>`;
+    }).join('');
+}
+
+function generateKeys() {
+    const count = parseInt(document.getElementById('generateCount').value);
+    if (!count || count < 1 || count > 200) {
+        alert('数量范围 1-200');
+        return;
+    }
+
+    if (!confirm(`确定生成 ${count} 个新密钥吗？`)) return;
+
+    fetch(API_BASE + '/admin/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count, adminPassword: adminPwd })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(`成功生成 ${data.count} 个密钥`);
+            loadKeys();
+        } else {
+            alert(data.error || '生成失败');
+        }
+    })
+    .catch(e => alert('网络错误：' + e.message));
+}
+
+function revokeKey(key) {
+    if (!confirm(`确定作废密钥 ${key} 吗？作废后无法恢复。`)) return;
+
+    fetch(API_BASE + '/admin/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, adminPassword: adminPwd })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert('已作废');
+            loadKeys();
+        } else {
+            alert(data.error || '操作失败');
+        }
+    })
+    .catch(e => alert('网络错误：' + e.message));
+}
+
+function exportKeys() {
+    fetch(API_BASE + '/admin/list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminPassword: adminPwd })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            alert(data.error || '导出失败');
+            return;
+        }
+        const unused = data.keys.filter(k => !k.activated && !k.revoked);
+        if (unused.length === 0) {
+            alert('没有未使用的密钥');
+            return;
+        }
+        const text = unused.map(k => k.key).join('\n');
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `keys_${new Date().toISOString().slice(0,10)}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    })
+    .catch(e => alert('网络错误：' + e.message));
+}
+
+function formatDate(ts) {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+</script>
+</body>
+</html>
