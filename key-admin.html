@@ -172,6 +172,27 @@
             cursor: pointer;
         }
         .revoke-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .copy-btn {
+            padding: 4px 10px;
+            font-size: 11px;
+            background: #e6fffa;
+            color: #234e52;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .copy-btn.copied {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        .key-cell {
+            font-family: "SF Mono", Menlo, monospace;
+            display: flex;
+            align-items: center;
+        }
+        .key-text { flex: 1; }
         .date-text { font-family: -apple-system, sans-serif; font-size: 11px; color: #a0aec0; }
     </style>
 </head>
@@ -344,7 +365,12 @@ function renderData(data) {
         const canRevoke = !k.revoked;
 
         return `<tr>
-            <td>${k.key}</td>
+            <td>
+                <div class="key-cell">
+                    <span class="key-text">${k.key}</span>
+                    <button class="copy-btn" onclick="copyKey('${k.key}', this)">复制</button>
+                </div>
+            </td>
             <td><span class="status-badge ${statusClass}">${statusText}</span></td>
             <td><span class="date-text">${dateStr}</span></td>
             <td>${canRevoke ? `<button class="revoke-btn" onclick="revokeKey('${k.key}')">作废</button>` : '-'}</td>
@@ -376,6 +402,35 @@ function generateKeys() {
         }
     })
     .catch(e => alert('网络错误：' + e.message));
+}
+
+function copyKey(key, btn) {
+    navigator.clipboard.writeText(key).then(() => {
+        const origText = btn.textContent;
+        btn.textContent = '已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = origText;
+            btn.classList.remove('copied');
+        }, 1500);
+    }).catch(() => {
+        // 降级方案
+        const ta = document.createElement('textarea');
+        ta.value = key;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        const origText = btn.textContent;
+        btn.textContent = '已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = origText;
+            btn.classList.remove('copied');
+        }, 1500);
+    });
 }
 
 function revokeKey(key) {
