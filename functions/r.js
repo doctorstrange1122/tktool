@@ -25,17 +25,26 @@ const RELAY_HTML = `<!DOCTYPE html>
     border: 1.5px solid #ccc; border-radius: 24px; font-size: 15px; text-decoration: none; font-weight: bold;
   }
   .tip { margin-top: 18px; font-size: 13px; color: #aaa; line-height: 1.6; }
+  #diag { position: fixed; bottom: 6px; left: 8px; right: 8px; font-size: 10px; color: #ccc; text-align: left; word-break: break-all; }
 </style>
 </head>
 <body>
-  <div id="status">正在解析…</div>
+  <div id="status">1/4 读取参数…</div>
   <button class="btn" id="jumpBtn" onclick="openTaobaoApp(window._targetUrl)">一键跳转淘宝</button>
   <a class="btn2" id="fallbackBtn" href="#">在浏览器打开活动页</a>
   <div class="tip">建议使用淘宝App「扫一扫」使用本码</div>
+  <div id="diag"></div>
 
 <script>
-// ===== AES-256-GCM 密钥（与生成端一致，base64url 编码的 32 字节）=====
-var KEY_B64 = "qdFpEAC_A6a70v-ruXAlOAvKAxVWgQ4e-0okednASoo";
+// ===== RC4 纯 JS 加密（无任何浏览器 API 依赖，兼容所有内核）=====
+var KEY_B64 = "5Rm0bPpMo4529RSo1ewsqnYdL_JmKwXOVG9i6gLwwWc";
+
+function setStatus(text) {
+  document.getElementById("status").textContent = text;
+}
+function setDiag(text) {
+  document.getElementById("diag").textContent = text;
+}
 
 function b64urlToBuf(s) {
   s = s.replace(/-/g, "+").replace(/_/g, "/");
@@ -46,28 +55,31 @@ function b64urlToBuf(s) {
   return buf;
 }
 
-function setStatus(text) {
-  document.getElementById("status").textContent = text;
+function rc4(key, data) {
+  var S = [], i, j = 0, t;
+  for (i = 0; i < 256; i++) S[i] = i;
+  for (i = 0; i < 256; i++) {
+    j = (j + S[i] + key[i % key.length]) & 255;
+    t = S[i]; S[i] = S[j]; S[j] = t;
+  }
+  var out = new Uint8Array(data.length);
+  i = 0; j = 0;
+  for (var n = 0; n < data.length; n++) {
+    i = (i + 1) & 255;
+    j = (j + S[i]) & 255;
+    t = S[i]; S[i] = S[j]; S[j] = t;
+    out[n] = data[n] ^ S[(S[i] + S[j]) & 255];
+  }
+  return out;
 }
 
-async function decryptToken(token) {
-  var raw = b64urlToBuf(token);
-  var iv = raw.slice(0, 12);
-  var data = raw.slice(12);
-  var key = await crypto.subtle.importKey("raw", b64urlToBuf(KEY_B64), { name: "AES-GCM" }, false, ["decrypt"]);
-  var plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, data);
-  return new TextDecoder().decode(plain);
-}
-
-// ===== 以下逻辑逐字复刻 tktool 网页版 index.html 的 openTaobaoApp（用户实测浏览器可用）=====
+// ===== 跳转逻辑逐字复刻 tktool 网页版（用户实测浏览器可用）=====
 // 跳转到淘宝APP（兼容 Android / iOS / 鸿蒙系统）
 function openTaobaoApp(url) {
     var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
     var isAPK = !!window.NativeBridge || (window.Android && typeof window.Android !== 'undefined');
 
-    // tbopen:// 是淘宝官方 Deep Link，鸿蒙/安卓兼容性好
     var tbopenUrl = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" + encodeURIComponent(url);
-    // taobao:// scheme（iOS 主要认这个）
     var taobaoScheme = "taobao://" + url.replace('https://', '');
 
     var appOpened = false;
@@ -76,16 +88,12 @@ function openTaobaoApp(url) {
     };
     document.addEventListener('visibilitychange', visibilityHandler);
 
-    // 尝试唤起 APP
     function tryScheme(schemeUrl) {
         if (isAPK) {
-            // APK 环境：Java shouldOverrideUrlLoading 会拦截 scheme
             window.location.href = schemeUrl;
         } else if (isIOS) {
-            // iOS Safari：必须用 window.location.href 直接跳转，iframe 会被拦截
             window.location.href = schemeUrl;
         } else {
-            // 安卓浏览器：用隐藏 iframe 避免页面导航错误
             var iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             iframe.src = schemeUrl;
@@ -97,10 +105,8 @@ function openTaobaoApp(url) {
     }
 
     if (isIOS) {
-        // iOS：用 taobao:// scheme 直接唤起
         tryScheme(taobaoScheme);
     } else {
-        // 安卓/鸿蒙/APK：优先 tbopen://，失败回落 taobao://
         tryScheme(tbopenUrl);
         setTimeout(function () {
             if (appOpened) {
@@ -112,30 +118,36 @@ function openTaobaoApp(url) {
     }
 }
 
-(async function () {
+try {
   var params = new URLSearchParams(location.search);
   var t = params.get("t");
-  if (!t) { setStatus("链接无效：缺少参数"); return; }
+  setDiag("step1: param len=" + (t ? t.length : 0));
+  if (!t) { setStatus("链接无效：缺少参数"); throw new Error("no param"); }
 
-  var url;
-  try {
-    url = await decryptToken(t);
-    if (!/^https:\/\/([-a-z0-9.]+\.)*(taobao|tmall)\.com\//i.test(url)) throw new Error("domain");
-  } catch (e) {
-    setStatus("链接解析失败，请重新生成二维码");
-    return;
-  }
+  setStatus("2/4 解密中…");
+  var ct = b64urlToBuf(t);
+  var pt = rc4(b64urlToBuf(KEY_B64), ct);
+  var url = new TextDecoder().decode(pt);
+  setDiag("step2: decrypt len=" + url.length);
 
-  // 仅解密 + 显示按钮，零自动唤起（与网页版行为完全一致，避免触发浏览器拦截）
+  setStatus("3/4 校验中…");
+  if (!/^https:\/\/([-a-z0-9.]+\.)*(taobao|tmall)\.com\//i.test(url)) throw new Error("domain check");
+  setDiag("step3: domain ok");
+
+  // 全部通过 → 显示按钮（零自动唤起，与网页版一致）
+  setStatus("4/4 完成！点击下方按钮打开淘宝");
   window._targetUrl = url;
-  setStatus("点击下方按钮打开淘宝");
   document.getElementById("jumpBtn").style.display = "inline-block";
+  setDiag("step4: ready | " + navigator.userAgent.slice(0, 80));
+} catch (e) {
+  setStatus("链接解析失败，请截图此页反馈");
+  setDiag("ERROR: " + e.message + " | " + navigator.userAgent.slice(0, 80));
+}
 
-  // 兜底：浏览器直接打开活动页
-  document.getElementById("fallbackBtn").addEventListener("click", function () {
-    setTimeout(function () { location.href = url; }, 0);
-  });
-})();
+// 兜底：浏览器直接打开活动页
+document.getElementById("fallbackBtn").addEventListener("click", function () {
+  setTimeout(function () { location.href = window._targetUrl; }, 0);
+});
 </script>
 </body>
 </html>
