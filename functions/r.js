@@ -24,6 +24,10 @@ const RELAY_HTML = `<!DOCTYPE html>
     display: inline-block; margin-top: 28px; padding: 14px 48px; background: #ff5000; color: #fff;
     border-radius: 24px; font-size: 17px; text-decoration: none; font-weight: bold;
   }
+  .btn-fallback {
+    display: none; margin-top: 14px; padding: 12px 36px; background: #fff; color: #ff5000;
+    border: 1.5px solid #ff5000; border-radius: 24px; font-size: 15px; text-decoration: none; font-weight: bold;
+  }
   .tip { margin-top: 20px; font-size: 13px; color: #aaa; line-height: 1.6; }
 </style>
 </head>
@@ -31,7 +35,8 @@ const RELAY_HTML = `<!DOCTYPE html>
   <div class="spinner" id="spinner"></div>
   <div id="status">正在打开淘宝…</div>
   <a class="btn" id="manualBtn" href="#">打开淘宝App</a>
-  <div class="tip">建议使用淘宝App「扫一扫」使用本码<br>若点击按钮无反应，请截屏保存二维码后在淘宝内打开</div>
+  <a class="btn-fallback" id="fallbackBtn" href="#">唤起失败？在浏览器打开活动页</a>
+  <div class="tip">建议使用淘宝App「扫一扫」使用本码</div>
 
 <script>
 // ===== AES-256-GCM 密钥（与生成端一致，base64url 编码的 32 字节）=====
@@ -74,23 +79,39 @@ async function decryptToken(token) {
     return;
   }
 
-  // 组装唤起协议（链接全程不出现在页面上、不写剪贴板）
+  // ===== 唤起策略（链接全程不出现在页面上、不写剪贴板）=====
+  var ua = navigator.userAgent;
+  var isAndroidUA = /android/i.test(ua);
+  var isHarmonyNext = (/openharmony|harmonyos/i.test(ua)) && !isAndroidUA; // 纯血鸿蒙（不支持 intent://）
   var enc = encodeURIComponent(url);
+
   var tbopen = "tbopen://m.taobao.com/tbopen/index.html?h5Url=" + enc +
                "&action=ali.open.nav&module=h5&bootImage=0";
-  // 安卓：带包名的 intent:// 精确唤起淘宝（浏览器拦截策略下成功率最高）
+  var taobaoScheme = "taobao://m.taobao.com/tbopen/index.html?h5Url=" + enc +
+               "&action=ali.open.nav&module=h5&bootImage=0";
   var intent = "intent://m.taobao.com/tbopen/index.html?h5Url=" + enc +
                "&action=ali.open.nav&module=h5&bootImage=0#Intent;scheme=tbopen;package=com.taobao.taobao;end";
 
-  var isAndroid = /android/i.test(navigator.userAgent);
-  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  var wakeUrl = isAndroid ? intent : tbopen;
+  // 安卓真机用 intent://（带包名精确唤起）；纯血鸿蒙/iOS/其他用 tbopen://
+  var wakeUrl = (isAndroidUA && !isHarmonyNext) ? intent : tbopen;
 
   var btn = document.getElementById("manualBtn");
+  var fbBtn = document.getElementById("fallbackBtn");
+
+  // 主按钮：用户手势触发唤起（绕过浏览器对自动唤起的拦截）
   btn.href = wakeUrl;
-  // 用户手势触发唤起（绕过浏览器对自动唤起的拦截）
   btn.addEventListener("click", function () {
     setTimeout(function () { location.href = wakeUrl; }, 0);
+    // 点击 1.8 秒后仍在页面 → scheme 唤起失败 → 显示浏览器直开兜底
+    setTimeout(function () {
+      setStatus("若未跳转，点击下方按钮");
+      fbBtn.style.display = "inline-block";
+    }, 1800);
+  });
+
+  // 兜底：浏览器直接打开活动页（鸿蒙系统可能通过 App Linking 唤起淘宝；即便不唤起，H5 活动页也能正常使用）
+  fbBtn.addEventListener("click", function () {
+    setTimeout(function () { location.href = url; }, 0);
   });
 
   // 自动唤起尝试（允许的浏览器直接跳走）
@@ -98,7 +119,7 @@ async function decryptToken(token) {
 
   setTimeout(function () {
     document.getElementById("spinner").style.display = "none";
-    setStatus("点击下方按钮打开淘宝");
+    setStatus("若未自动跳转，请点击按钮");
   }, 2000);
 })();
 </script>
