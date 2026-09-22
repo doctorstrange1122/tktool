@@ -687,20 +687,47 @@ function updateSelectInfo() {
     document.getElementById('selectAllFilteredCheckbox').checked = filteredAllChecked;
 }
 
+function getStatusText(k) {
+    if (k.revoked) return '已作废';
+    if (k.activated) return '已激活';
+    return '未使用';
+}
+
+function exportToExcel(rows, filename) {
+    // 生成Excel格式的HTML表格
+    let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+    html += '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>密钥列表</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="1">';
+    // 表头
+    html += '<tr><th style="background:#667eea;color:#fff;padding:6px;">序号</th><th style="background:#667eea;color:#fff;padding:6px;">密钥</th><th style="background:#667eea;color:#fff;padding:6px;">状态</th></tr>';
+    // 数据行
+    rows.forEach((row, i) => {
+        html += `<tr><td style="padding:4px;text-align:center;">${i + 1}</td><td style="padding:4px;font-family:monospace;">${row.key}</td><td style="padding:4px;">${row.status}</td></tr>`;
+    });
+    html += '</table></body></html>';
+
+    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 function exportSelected() {
     if (selectedKeys.size === 0) {
         alert('请先选择要导出的密钥');
         return;
     }
-    const keys = Array.from(selectedKeys);
-    const text = keys.join('\n');
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `keys_selected_${new Date().toISOString().slice(0,10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    // 从allKeys中找到选中密钥的完整信息
+    const rows = Array.from(selectedKeys).map(key => {
+        const k = allKeys.find(item => item.key === key);
+        return {
+            key: key,
+            status: k ? getStatusText(k) : '未知'
+        };
+    });
+    exportToExcel(rows, `keys_selected_${new Date().toISOString().slice(0,10)}.xls`);
 }
 
 function exportKeys() {
@@ -720,14 +747,11 @@ function exportKeys() {
             alert('没有未使用的密钥');
             return;
         }
-        const text = unused.map(k => k.key).join('\n');
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `keys_${new Date().toISOString().slice(0,10)}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
+        const rows = unused.map(k => ({
+            key: k.key,
+            status: getStatusText(k)
+        }));
+        exportToExcel(rows, `keys_unused_${new Date().toISOString().slice(0,10)}.xls`);
     })
     .catch(e => alert('网络错误：' + e.message));
 }
