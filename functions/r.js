@@ -14,31 +14,24 @@ const RELAY_HTML = `<!DOCTYPE html>
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     height: 100vh; background: #fff; color: #333; text-align: center; padding: 24px;
   }
-  .spinner {
-    width: 36px; height: 36px; border: 3px solid #eee; border-top-color: #ff5000;
-    border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #status { font-size: 16px; color: #666; }
+  #status { font-size: 16px; color: #666; margin-bottom: 8px; }
   .btn {
-    display: none; margin-top: 28px; padding: 14px 48px; background: #ff5000; color: #fff;
-    border-radius: 24px; font-size: 17px; text-decoration: none; font-weight: bold;
+    display: none; margin-top: 20px; padding: 16px 56px; background: #ff5000; color: #fff;
+    border-radius: 28px; font-size: 18px; text-decoration: none; font-weight: bold;
+    border: none; font-family: inherit;
   }
-  .btn2 {
+  .btn-fallback {
     display: none; margin-top: 14px; padding: 12px 36px; background: #fff; color: #ff5000;
     border: 1.5px solid #ff5000; border-radius: 24px; font-size: 15px; text-decoration: none; font-weight: bold;
   }
   .tip { margin-top: 20px; font-size: 13px; color: #aaa; line-height: 1.6; }
-  #diag { position: fixed; bottom: 6px; left: 8px; right: 8px; font-size: 10px; color: #ccc; text-align: left; word-break: break-all; }
 </style>
 </head>
 <body>
-  <div class="spinner" id="spinner"></div>
-  <div id="status">正在打开淘宝…</div>
-  <a class="btn" id="openUrlBtn" href="#">打开活动页（推荐）</a>
-  <a class="btn2" id="schemeBtn" href="#">唤起淘宝App（隐藏链接）</a>
-  <div class="tip">若系统弹出「在淘宝中打开」，请点击允许</div>
-  <div id="diag"></div>
+  <div id="status">正在解析…</div>
+  <button class="btn" id="manualBtn">打开淘宝App</button>
+  <a class="btn-fallback" id="fallbackBtn" href="#">唤起失败？在浏览器打开活动页</a>
+  <div class="tip">建议使用淘宝App「扫一扫」使用本码</div>
 
 <script>
 // ===== AES-256-GCM 密钥（与生成端一致，base64url 编码的 32 字节）=====
@@ -66,41 +59,6 @@ async function decryptToken(token) {
   return new TextDecoder().decode(plain);
 }
 
-// scheme 唤起（huafei 一键跳转同款：tbopen:// 优先，taobao:// 回落，iframe 触发）
-function openTaobaoApp(targetUrl) {
-    var tbopenUrl = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" + encodeURIComponent(targetUrl);
-    var taobaoScheme = "taobao://" + targetUrl.replace("https://", "");
-
-    var appOpened = false;
-    var visibilityHandler = function () {
-        if (document.hidden) { appOpened = true; }
-    };
-    document.addEventListener("visibilitychange", visibilityHandler);
-
-    function tryScheme(schemeUrl) {
-        if (window.NativeBridge || (window.Android && typeof window.Android !== "undefined")) {
-            window.location.href = schemeUrl;
-        } else {
-            var iframe = document.createElement("iframe");
-            iframe.style.display = "none";
-            iframe.src = schemeUrl;
-            document.body.appendChild(iframe);
-            setTimeout(function () {
-                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-            }, 3000);
-        }
-    }
-
-    tryScheme(tbopenUrl);
-    setTimeout(function () {
-        if (appOpened) {
-            document.removeEventListener("visibilitychange", visibilityHandler);
-            return;
-        }
-        tryScheme(taobaoScheme);
-    }, 1000);
-}
-
 (async function () {
   var params = new URLSearchParams(location.search);
   var t = params.get("t");
@@ -109,35 +67,52 @@ function openTaobaoApp(targetUrl) {
   var url;
   try {
     url = await decryptToken(t);
-    // 域名白名单：只允许跳转淘宝/天猫域名
     if (!/^https:\/\/([-a-z0-9.]+\.)*(taobao|tmall)\.com\//i.test(url)) throw new Error("domain");
   } catch (e) {
     setStatus("链接解析失败，请重新生成二维码");
     return;
   }
 
-  var openBtn = document.getElementById("openUrlBtn");
-  var schemeBtn = document.getElementById("schemeBtn");
+  var tbopen = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" + encodeURIComponent(url);
+  var taobaoScheme = "taobao://" + url.replace("https://", "");
 
-  // 主按钮：导航到活动页 https（华为/鸿蒙系统对淘宝域名有 App Linking，会弹「在淘宝中打开」；不弹则浏览器直接打开 H5 活动页，均可正常使用）
-  openBtn.addEventListener("click", function () {
+  var appOpened = false;
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) { appOpened = true; }
+  });
+
+  var btn = document.getElementById("manualBtn");
+  var fbBtn = document.getElementById("fallbackBtn");
+
+  // ===== 核心策略：用户点击后【延迟执行】跳转（与 huafei 自动跳转复选框时序一致：
+  // 点击手势 → 300ms 延迟 → 跳转，处于浏览器手势激活窗口内）=====
+  btn.addEventListener("click", function () {
+    setStatus("正在跳转…");
+    setTimeout(function () { location.href = tbopen; }, 300);
+    setTimeout(function () {
+      if (!appOpened) { location.href = taobaoScheme; }
+    }, 1500);
+    setTimeout(function () {
+      if (!appOpened && !document.hidden) {
+        setStatus("仍未跳转？点击下方按钮");
+        fbBtn.style.display = "inline-block";
+      }
+    }, 3200);
+  });
+
+  // 兜底：浏览器直接打开活动页
+  fbBtn.addEventListener("click", function () {
     setTimeout(function () { location.href = url; }, 0);
   });
 
-  // 副按钮：scheme 唤起（不暴露链接；如浏览器拦截则无效）
-  schemeBtn.addEventListener("click", function () { openTaobaoApp(url); });
+  // 解密成功 → 立即显示按钮（本次不作自动跳转，完全依赖用户点击 + 延迟执行）
+  setStatus("点击下方按钮打开淘宝");
+  btn.style.display = "inline-block";
 
-  // 自动先静默尝试一轮 scheme（部分浏览器允许）
-  openTaobaoApp(url);
-
-  // 2 秒后仍未跳走 → 显示按钮组 + 诊断信息
+  // 自动尝试一轮：延迟 500ms 的 location.href（模拟 huafei 生成后自动跳转的时序）
+  setTimeout(function () { location.href = tbopen; }, 500);
   setTimeout(function () {
-    document.getElementById("spinner").style.display = "none";
-    setStatus("若未自动跳转，请选择下方方式");
-    openBtn.style.display = "inline-block";
-    schemeBtn.style.display = "inline-block";
-    document.getElementById("diag").textContent =
-      "diag: " + navigator.userAgent.slice(0, 120) + " | visible=" + (!document.hidden);
+    if (!appOpened && !document.hidden) { location.href = taobaoScheme; }
   }, 2000);
 })();
 </script>
