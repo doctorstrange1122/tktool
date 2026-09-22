@@ -194,6 +194,59 @@
         }
         .key-text { flex: 1; }
         .date-text { font-family: -apple-system, sans-serif; font-size: 11px; color: #a0aec0; }
+
+        /* 筛选与分页 */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #4a5568;
+        }
+        .filter-select {
+            padding: 5px 10px;
+            font-size: 13px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            outline: none;
+            background: #fff;
+            color: #4a5568;
+            cursor: pointer;
+        }
+        .filter-select:focus { border-color: #667eea; }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 14px;
+        }
+        .page-btn {
+            padding: 6px 14px;
+            font-size: 13px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #4a5568;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .page-btn:hover:not(:disabled) { border-color: #667eea; color: #667eea; }
+        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            border-color: transparent;
+        }
+        .page-info { font-size: 12px; color: #718096; }
     </style>
 </head>
 <body>
@@ -248,6 +301,18 @@
                     <span>密钥列表</span>
                     <button class="export-btn" onclick="exportKeys()">导出未使用</button>
                 </h3>
+                <div class="toolbar">
+                    <div class="filter-group">
+                        <span>状态：</span>
+                        <select class="filter-select" id="statusFilter" onchange="onFilterChange()">
+                            <option value="all">全部</option>
+                            <option value="unused">未使用</option>
+                            <option value="active">已激活</option>
+                            <option value="revoked">已作废</option>
+                        </select>
+                    </div>
+                    <span class="page-info" id="pageInfo"></span>
+                </div>
                 <div style="overflow-x: auto;">
                     <table class="keys-table">
                         <thead>
@@ -263,6 +328,7 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="pagination" id="pagination"></div>
             </div>
         </div>
     </div>
@@ -270,6 +336,9 @@
 <script>
 const API_BASE = location.origin + '/api/key';
 let adminPwd = '';
+let allKeys = [];          // 全部密钥数据
+let currentPage = 1;       // 当前页码
+const PAGE_SIZE = 20;       // 每页显示数量
 
 // 初始化：检查是否已登录
 window.onload = function() {
@@ -348,34 +417,113 @@ function renderData(data) {
     document.getElementById('statUnused').textContent = data.stats.unused;
     document.getElementById('statRevoked').textContent = data.stats.revoked;
 
+    // 保存全部密钥数据
+    allKeys = data.keys || [];
+
+    // 渲染列表（带筛选和分页）
+    renderKeysList();
+}
+
+function getFilteredKeys() {
+    const filter = document.getElementById('statusFilter').value;
+    if (filter === 'all') return allKeys;
+    return allKeys.filter(k => {
+        if (filter === 'unused') return !k.activated && !k.revoked;
+        if (filter === 'active') return k.activated && !k.revoked;
+        if (filter === 'revoked') return k.revoked;
+        return true;
+    });
+}
+
+function onFilterChange() {
+    currentPage = 1;
+    renderKeysList();
+}
+
+function renderKeysList() {
+    const filtered = getFilteredKeys();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageKeys = filtered.slice(start, start + PAGE_SIZE);
+
+    // 页码信息
+    const infoEl = document.getElementById('pageInfo');
+    if (filtered.length === 0) {
+        infoEl.textContent = '';
+    } else {
+        infoEl.textContent = `共 ${filtered.length} 个，第 ${currentPage}/${totalPages} 页`;
+    }
+
     // 列表
     const tbody = document.getElementById('keysTableBody');
-    if (!data.keys || data.keys.length === 0) {
+    if (pageKeys.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#a0aec0; padding:20px;">暂无密钥</td></tr>';
+    } else {
+        tbody.innerHTML = pageKeys.map(k => {
+            let statusClass, statusText;
+            if (k.revoked) { statusClass = 'status-revoked'; statusText = '已作废'; }
+            else if (k.activated) { statusClass = 'status-active'; statusText = '已激活'; }
+            else { statusClass = 'status-unused'; statusText = '未使用'; }
+
+            const dateStr = k.activatedAt ? formatDate(k.activatedAt) : '-';
+            const canRevoke = !k.revoked;
+
+            return `<tr>
+                <td>
+                    <div class="key-cell">
+                        <span class="key-text">${k.key}</span>
+                        <button class="copy-btn" onclick="copyKey('${k.key}', this)">复制</button>
+                    </div>
+                </td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td><span class="date-text">${dateStr}</span></td>
+                <td>${canRevoke ? `<button class="revoke-btn" onclick="revokeKey('${k.key}')">作废</button>` : '-'}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // 分页按钮
+    renderPagination(totalPages);
+}
+
+function renderPagination(totalPages) {
+    const pagEl = document.getElementById('pagination');
+    if (totalPages <= 1) {
+        pagEl.innerHTML = '';
         return;
     }
 
-    tbody.innerHTML = data.keys.map(k => {
-        let statusClass, statusText;
-        if (k.revoked) { statusClass = 'status-revoked'; statusText = '已作废'; }
-        else if (k.activated) { statusClass = 'status-active'; statusText = '已激活'; }
-        else { statusClass = 'status-unused'; statusText = '未使用'; }
+    let html = '';
+    // 上一页
+    html += `<button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">上一页</button>`;
 
-        const dateStr = k.activatedAt ? formatDate(k.activatedAt) : '-';
-        const canRevoke = !k.revoked;
+    // 页码按钮（最多显示7个）
+    let startPage = Math.max(1, currentPage - 3);
+    let endPage = Math.min(totalPages, startPage + 6);
+    if (endPage - startPage < 6) startPage = Math.max(1, endPage - 6);
 
-        return `<tr>
-            <td>
-                <div class="key-cell">
-                    <span class="key-text">${k.key}</span>
-                    <button class="copy-btn" onclick="copyKey('${k.key}', this)">复制</button>
-                </div>
-            </td>
-            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-            <td><span class="date-text">${dateStr}</span></td>
-            <td>${canRevoke ? `<button class="revoke-btn" onclick="revokeKey('${k.key}')">作废</button>` : '-'}</td>
-        </tr>`;
-    }).join('');
+    if (startPage > 1) {
+        html += `<button class="page-btn" onclick="goToPage(1)">1</button>`;
+        if (startPage > 2) html += `<span class="page-info">...</span>`;
+    }
+    for (let i = startPage; i <= endPage; i++) {
+        html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+    }
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) html += `<span class="page-info">...</span>`;
+        html += `<button class="page-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+    }
+
+    // 下一页
+    html += `<button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})">下一页</button>`;
+    pagEl.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    renderKeysList();
 }
 
 function generateKeys() {
