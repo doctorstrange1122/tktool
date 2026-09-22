@@ -21,7 +21,7 @@ const RELAY_HTML = `<!DOCTYPE html>
   @keyframes spin { to { transform: rotate(360deg); } }
   #status { font-size: 16px; color: #666; }
   .btn {
-    display: none; margin-top: 28px; padding: 14px 48px; background: #ff5000; color: #fff;
+    display: inline-block; margin-top: 28px; padding: 14px 48px; background: #ff5000; color: #fff;
     border-radius: 24px; font-size: 17px; text-decoration: none; font-weight: bold;
   }
   .tip { margin-top: 20px; font-size: 13px; color: #aaa; line-height: 1.6; }
@@ -30,8 +30,8 @@ const RELAY_HTML = `<!DOCTYPE html>
 <body>
   <div class="spinner" id="spinner"></div>
   <div id="status">正在打开淘宝…</div>
-  <a class="btn" id="manualBtn" href="#">打开淘宝</a>
-  <div class="tip">建议使用淘宝App「扫一扫」使用本码<br>如未自动跳转，请点击上方按钮</div>
+  <a class="btn" id="manualBtn" href="#">打开淘宝App</a>
+  <div class="tip">建议使用淘宝App「扫一扫」使用本码<br>若点击按钮无反应，请截屏保存二维码后在淘宝内打开</div>
 
 <script>
 // ===== AES-256-GCM 密钥（与生成端一致，base64url 编码的 32 字节）=====
@@ -46,9 +46,8 @@ function b64urlToBuf(s) {
   return buf;
 }
 
-function setStatus(text, hideSpinner) {
+function setStatus(text) {
   document.getElementById("status").textContent = text;
-  if (hideSpinner) document.getElementById("spinner").style.display = "none";
 }
 
 async function decryptToken(token) {
@@ -63,7 +62,7 @@ async function decryptToken(token) {
 (async function () {
   var params = new URLSearchParams(location.search);
   var t = params.get("t");
-  if (!t) { setStatus("链接无效：缺少参数", true); return; }
+  if (!t) { setStatus("链接无效：缺少参数"); return; }
 
   var url;
   try {
@@ -71,23 +70,36 @@ async function decryptToken(token) {
     // 域名白名单：只允许跳转淘宝/天猫域名
     if (!/^https:\/\/([-a-z0-9.]+\.)*(taobao|tmall)\.com\//i.test(url)) throw new Error("domain");
   } catch (e) {
-    setStatus("链接解析失败，请重新生成二维码", true);
+    setStatus("链接解析失败，请重新生成二维码");
     return;
   }
 
-  // 组装 tbopen 唤起协议：手淘内部直接打开活动页（链接全程不出现在页面上）
-  var tbopen = "tbopen://m.taobao.com/tbopen/index.html?h5Url=" +
-               encodeURIComponent(url) +
+  // 组装唤起协议（链接全程不出现在页面上、不写剪贴板）
+  var enc = encodeURIComponent(url);
+  var tbopen = "tbopen://m.taobao.com/tbopen/index.html?h5Url=" + enc +
                "&action=ali.open.nav&module=h5&bootImage=0";
+  // 安卓：带包名的 intent:// 精确唤起淘宝（浏览器拦截策略下成功率最高）
+  var intent = "intent://m.taobao.com/tbopen/index.html?h5Url=" + enc +
+               "&action=ali.open.nav&module=h5&bootImage=0#Intent;scheme=tbopen;package=com.taobao.taobao;end";
+
+  var isAndroid = /android/i.test(navigator.userAgent);
+  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  var wakeUrl = isAndroid ? intent : tbopen;
 
   var btn = document.getElementById("manualBtn");
-  btn.href = tbopen;
-  location.href = tbopen; // 自动唤起
+  btn.href = wakeUrl;
+  // 用户手势触发唤起（绕过浏览器对自动唤起的拦截）
+  btn.addEventListener("click", function () {
+    setTimeout(function () { location.href = wakeUrl; }, 0);
+  });
+
+  // 自动唤起尝试（允许的浏览器直接跳走）
+  location.href = wakeUrl;
 
   setTimeout(function () {
-    setStatus("未自动跳转？", true);
-    btn.style.display = "inline-block";
-  }, 2500);
+    document.getElementById("spinner").style.display = "none";
+    setStatus("点击下方按钮打开淘宝");
+  }, 2000);
 })();
 </script>
 </body>
