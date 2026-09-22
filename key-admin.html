@@ -194,6 +194,27 @@
         }
         .key-text { flex: 1; }
         .date-text { font-family: -apple-system, sans-serif; font-size: 11px; color: #a0aec0; }
+        .key-checkbox { width: 16px; height: 16px; cursor: pointer; margin-right: 8px; accent-color: #667eea; }
+        .select-all-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #4a5568;
+        }
+        .select-all-bar label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+        .select-all-bar .select-info { margin-left: auto; font-size: 12px; color: #718096; }
+        .export-selected-btn {
+            font-size: 12px;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
 
         /* 筛选与分页 */
         .toolbar {
@@ -299,7 +320,10 @@
             <div class="card keys-section">
                 <h3>
                     <span>密钥列表</span>
-                    <button class="export-btn" onclick="exportKeys()">导出未使用</button>
+                    <div style="display: flex; align-items: center;">
+                        <button class="export-btn" onclick="exportKeys()">导出未使用</button>
+                        <button class="export-selected-btn" onclick="exportSelected()">导出选中</button>
+                    </div>
                 </h3>
                 <div class="toolbar">
                     <div class="filter-group">
@@ -313,10 +337,16 @@
                     </div>
                     <span class="page-info" id="pageInfo"></span>
                 </div>
+                <div class="select-all-bar">
+                    <label><input type="checkbox" class="key-checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"> 本页全选</label>
+                    <label><input type="checkbox" class="key-checkbox" id="selectAllFilteredCheckbox" onchange="toggleSelectAllFiltered(this)"> 全选筛选结果</label>
+                    <span class="select-info" id="selectInfo">已选 0 个</span>
+                </div>
                 <div style="overflow-x: auto;">
                     <table class="keys-table">
                         <thead>
                             <tr>
+                                <th style="width:30px;">选</th>
                                 <th>密钥</th>
                                 <th>状态</th>
                                 <th>激活时间</th>
@@ -324,7 +354,7 @@
                             </tr>
                         </thead>
                         <tbody id="keysTableBody">
-                            <tr><td colspan="4" style="text-align:center; color:#a0aec0; padding:20px;">加载中...</td></tr>
+                            <tr><td colspan="5" style="text-align:center; color:#a0aec0; padding:20px;">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -339,6 +369,7 @@ let adminPwd = '';
 let allKeys = [];          // 全部密钥数据
 let currentPage = 1;       // 当前页码
 const PAGE_SIZE = 20;       // 每页显示数量
+let selectedKeys = new Set(); // 选中的密钥集合
 
 // 初始化：检查是否已登录
 window.onload = function() {
@@ -459,7 +490,7 @@ function renderKeysList() {
     // 列表
     const tbody = document.getElementById('keysTableBody');
     if (pageKeys.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#a0aec0; padding:20px;">暂无密钥</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#a0aec0; padding:20px;">暂无密钥</td></tr>';
     } else {
         tbody.innerHTML = pageKeys.map(k => {
             let statusClass, statusText;
@@ -469,8 +500,10 @@ function renderKeysList() {
 
             const dateStr = k.activatedAt ? formatDate(k.activatedAt) : '-';
             const canRevoke = !k.revoked;
+            const checked = selectedKeys.has(k.key) ? 'checked' : '';
 
             return `<tr>
+                <td><input type="checkbox" class="key-checkbox row-checkbox" value="${k.key}" ${checked} onchange="toggleKeySelection('${k.key}', this.checked)"></td>
                 <td>
                     <div class="key-cell">
                         <span class="key-text">${k.key}</span>
@@ -483,6 +516,9 @@ function renderKeysList() {
             </tr>`;
         }).join('');
     }
+
+    // 更新选择状态
+    updateSelectInfo();
 
     // 分页按钮
     renderPagination(totalPages);
@@ -599,6 +635,72 @@ function revokeKey(key) {
         }
     })
     .catch(e => alert('网络错误：' + e.message));
+}
+
+function toggleKeySelection(key, checked) {
+    if (checked) {
+        selectedKeys.add(key);
+    } else {
+        selectedKeys.delete(key);
+    }
+    updateSelectInfo();
+}
+
+function toggleSelectAll(checkbox) {
+    // 本页全选
+    const filtered = getFilteredKeys();
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageKeys = filtered.slice(start, start + PAGE_SIZE);
+    pageKeys.forEach(k => {
+        if (checkbox.checked) selectedKeys.add(k.key);
+        else selectedKeys.delete(k.key);
+    });
+    renderKeysList();
+    // 保持本页全选框状态
+    document.getElementById('selectAllCheckbox').checked = checkbox.checked;
+}
+
+function toggleSelectAllFiltered(checkbox) {
+    const filtered = getFilteredKeys();
+    if (checkbox.checked) {
+        filtered.forEach(k => selectedKeys.add(k.key));
+    } else {
+        filtered.forEach(k => selectedKeys.delete(k.key));
+    }
+    renderKeysList();
+    document.getElementById('selectAllFilteredCheckbox').checked = checkbox.checked;
+}
+
+function updateSelectInfo() {
+    const count = selectedKeys.size;
+    document.getElementById('selectInfo').textContent = `已选 ${count} 个`;
+
+    // 更新本页全选框状态
+    const filtered = getFilteredKeys();
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageKeys = filtered.slice(start, start + PAGE_SIZE);
+    const pageAllChecked = pageKeys.length > 0 && pageKeys.every(k => selectedKeys.has(k.key));
+    document.getElementById('selectAllCheckbox').checked = pageAllChecked;
+
+    // 更新全选筛选框状态
+    const filteredAllChecked = filtered.length > 0 && filtered.every(k => selectedKeys.has(k.key));
+    document.getElementById('selectAllFilteredCheckbox').checked = filteredAllChecked;
+}
+
+function exportSelected() {
+    if (selectedKeys.size === 0) {
+        alert('请先选择要导出的密钥');
+        return;
+    }
+    const keys = Array.from(selectedKeys);
+    const text = keys.join('\n');
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `keys_selected_${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 function exportKeys() {
