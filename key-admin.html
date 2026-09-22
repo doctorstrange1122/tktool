@@ -693,19 +693,13 @@ function getStatusText(k) {
     return '未使用';
 }
 
-function exportToExcel(rows, filename) {
-    // 生成Excel格式的HTML表格
-    let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
-    html += '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>密钥列表</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="1">';
-    // 表头
-    html += '<tr><th style="background:#667eea;color:#fff;padding:6px;">序号</th><th style="background:#667eea;color:#fff;padding:6px;">密钥</th><th style="background:#667eea;color:#fff;padding:6px;">状态</th></tr>';
-    // 数据行
+function exportToCSV(rows, filename) {
+    // CSV格式，BOM头确保中文不乱码
+    let csv = '\ufeff序号,密钥,状态\n';
     rows.forEach((row, i) => {
-        html += `<tr><td style="padding:4px;text-align:center;">${i + 1}</td><td style="padding:4px;font-family:monospace;">${row.key}</td><td style="padding:4px;">${row.status}</td></tr>`;
+        csv += `${i + 1},${row.key},${row.status}\n`;
     });
-    html += '</table></body></html>';
-
-    const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -727,7 +721,7 @@ function exportSelected() {
             status: k ? getStatusText(k) : '未知'
         };
     });
-    exportToExcel(rows, `keys_selected_${new Date().toISOString().slice(0,10)}.xls`);
+    exportToCSV(rows, `keys_selected_${new Date().toISOString().slice(0,10)}.csv`);
 }
 
 function exportKeys() {
@@ -751,7 +745,7 @@ function exportKeys() {
             key: k.key,
             status: getStatusText(k)
         }));
-        exportToExcel(rows, `keys_unused_${new Date().toISOString().slice(0,10)}.xls`);
+        exportToCSV(rows, `keys_unused_${new Date().toISOString().slice(0,10)}.csv`);
     })
     .catch(e => alert('网络错误：' + e.message));
 }
