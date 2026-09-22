@@ -64,6 +64,51 @@ async function decryptToken(token) {
   return new TextDecoder().decode(plain);
 }
 
+// ===== 唤起淘宝（移植自 huafei 一键跳转，与元宝过肥一致：tbopen://优先，taobao://回落）=====
+function openTaobaoApp(targetUrl) {
+    // tbopen:// 是淘宝官方 Deep Link，鸿蒙系统兼容性最好
+    var tbopenUrl = "tbopen://m.taobao.com/tbopen/index.html?action=ali.open.nav&h5Url=" + encodeURIComponent(targetUrl);
+    // taobao:// 作为备用 scheme（直接域名替换）
+    var taobaoScheme = "taobao://" + targetUrl.replace("https://", "");
+
+    var appOpened = false;
+    var visibilityHandler = function () {
+        if (document.hidden) { appOpened = true; }
+    };
+    document.addEventListener("visibilitychange", visibilityHandler);
+
+    // 尝试通过 scheme 唤起 APP（浏览器环境用隐藏 iframe，避免页面导航错误/被拦截）
+    function tryScheme(schemeUrl) {
+        if (window.NativeBridge || (window.Android && typeof window.Android !== "undefined")) {
+            window.location.href = schemeUrl;
+        } else {
+            var iframe = document.createElement("iframe");
+            iframe.style.display = "none";
+            iframe.src = schemeUrl;
+            document.body.appendChild(iframe);
+            setTimeout(function () {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 3000);
+        }
+    }
+
+    // 第一优先：tbopen://（鸿蒙兼容性最好）
+    tryScheme(tbopenUrl);
+
+    // 1秒后未打开则尝试 taobao://
+    setTimeout(function () {
+        if (appOpened) {
+            document.removeEventListener("visibilitychange", visibilityHandler);
+            return;
+        }
+        tryScheme(taobaoScheme);
+    }, 1000);
+
+    return function () {
+        document.removeEventListener("visibilitychange", visibilityHandler);
+    };
+}
+
 (async function () {
   var params = new URLSearchParams(location.search);
   var t = params.get("t");
@@ -79,48 +124,25 @@ async function decryptToken(token) {
     return;
   }
 
-  // ===== 唤起策略（链接全程不出现在页面上、不写剪贴板）=====
-  var ua = navigator.userAgent;
-  var isAndroidUA = /android/i.test(ua);
-  var isHarmonyNext = (/openharmony|harmonyos/i.test(ua)) && !isAndroidUA; // 纯血鸿蒙（不支持 intent://）
-  var enc = encodeURIComponent(url);
-
-  var tbopen = "tbopen://m.taobao.com/tbopen/index.html?h5Url=" + enc +
-               "&action=ali.open.nav&module=h5&bootImage=0";
-  var taobaoScheme = "taobao://m.taobao.com/tbopen/index.html?h5Url=" + enc +
-               "&action=ali.open.nav&module=h5&bootImage=0";
-  var intent = "intent://m.taobao.com/tbopen/index.html?h5Url=" + enc +
-               "&action=ali.open.nav&module=h5&bootImage=0#Intent;scheme=tbopen;package=com.taobao.taobao;end";
-
-  // 安卓真机用 intent://（带包名精确唤起）；纯血鸿蒙/iOS/其他用 tbopen://
-  var wakeUrl = (isAndroidUA && !isHarmonyNext) ? intent : tbopen;
-
   var btn = document.getElementById("manualBtn");
   var fbBtn = document.getElementById("fallbackBtn");
 
-  // 主按钮：用户手势触发唤起（绕过浏览器对自动唤起的拦截）
-  btn.href = wakeUrl;
-  btn.addEventListener("click", function () {
-    setTimeout(function () { location.href = wakeUrl; }, 0);
-    // 点击 1.8 秒后仍在页面 → scheme 唤起失败 → 显示浏览器直开兜底
-    setTimeout(function () {
-      setStatus("若未跳转，点击下方按钮");
-      fbBtn.style.display = "inline-block";
-    }, 1800);
-  });
+  // 主按钮：用户手势再触发一轮 tbopen -> taobao 唤起
+  btn.addEventListener("click", function () { openTaobaoApp(url); });
 
-  // 兜底：浏览器直接打开活动页（鸿蒙系统可能通过 App Linking 唤起淘宝；即便不唤起，H5 活动页也能正常使用）
+  // 兜底：浏览器直接打开活动页（系统可能通过 App Linking 唤起淘宝；即便不唤起，H5 活动页也能正常使用）
   fbBtn.addEventListener("click", function () {
     setTimeout(function () { location.href = url; }, 0);
   });
 
-  // 自动唤起尝试（允许的浏览器直接跳走）
-  location.href = wakeUrl;
+  // 自动唤起：先跑一轮 tbopen -> taobao（iframe 方式，部分浏览器允许非手势触发）
+  openTaobaoApp(url);
 
+  // 2.2 秒后仍在页面 → 自动唤起未成功 → 状态提示（按钮常显，等待用户点击）
   setTimeout(function () {
     document.getElementById("spinner").style.display = "none";
-    setStatus("若未自动跳转，请点击按钮");
-  }, 2000);
+    setStatus("若未自动跳转，请点击「打开淘宝App」");
+  }, 2200);
 })();
 </script>
 </body>
