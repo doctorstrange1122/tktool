@@ -1,5 +1,5 @@
 // 淘宝官方API淘口令生成服务
-// 使用 taobao.tbk.tpwd.mix.create 接口生成淘口令
+// 使用 taobao.tbk.tpwd.create 接口生成淘口令
 // 环境变量: TB_APP_KEY, TB_APP_SECRET
 
 const API_URL = 'https://eco.taobao.com/router/rest';
@@ -53,20 +53,17 @@ export async function onRequest(context) {
         // 获取请求参数
         let urlParam = '';
         let textParam = '肥料任务';
-        let passwordParam = '肥料口令';
         let logoParam = '';
 
         if (request.method === 'POST') {
             const body = await request.json();
             urlParam = body.url || '';
             textParam = body.text || textParam;
-            passwordParam = body.password || passwordParam;
             logoParam = body.logo || logoParam;
         } else {
             const sp = new URL(request.url).searchParams;
             urlParam = sp.get('url') || '';
             textParam = sp.get('text') || textParam;
-            passwordParam = sp.get('password') || passwordParam;
             logoParam = sp.get('logo') || logoParam;
         }
 
@@ -87,17 +84,14 @@ export async function onRequest(context) {
             String(now.getSeconds()).padStart(2, '0');
 
         const params = {
-            method: 'taobao.tbk.tpwd.mix.create',
+            method: 'taobao.tbk.tpwd.create',
             app_key: appKey,
             timestamp: timestamp,
             format: 'json',
             v: '2.0',
             sign_method: 'md5',
-            simplify: 'true',
-            ext: '{}',
             url: urlParam,
-            text: textParam,
-            password: passwordParam
+            text: textParam
         };
 
         if (logoParam) {
@@ -120,7 +114,7 @@ export async function onRequest(context) {
         const result = await resp.json();
         
         // 解析返回
-        const response = result['tbk_tpwd_mix_create_response'];
+        const response = result['tbk_tpwd_create_response'];
         if (response && response.data) {
             const data = response.data;
             return new Response(JSON.stringify({
@@ -128,7 +122,7 @@ export async function onRequest(context) {
                 model: data.model || '',
                 passwordSimple: data.password_simple || '',
                 password: data.password || '',
-                shortUrl: data.short_url || data.shortUrl || '',
+                shortUrl: data.short_url || '',
                 data: data
             }), { headers: corsHeaders });
         } else {
